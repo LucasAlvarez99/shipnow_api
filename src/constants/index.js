@@ -7,9 +7,34 @@ const PRODUCT_STATUS = Object.freeze({
 const USER_ROLES = Object.freeze({
   ADMIN: 'ADMIN',
   USER: 'USER',
+  DELIVERY: 'DELIVERY', // repartidor
+});
+
+const ORDER_STATUS = Object.freeze({
+  PENDING: 'PENDING',
+  CONFIRMED: 'CONFIRMED',
+  IN_TRANSIT: 'IN_TRANSIT',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+});
+
+const ORDER_PRIORITY = Object.freeze({
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+});
+
+const DELIVERY_STATUS = Object.freeze({
+  ASSIGNED: 'ASSIGNED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
 });
 
 module.exports = {
   PRODUCT_STATUS,
   USER_ROLES,
+  ORDER_STATUS,
+  ORDER_PRIORITY,
+  DELIVERY_STATUS,
 };

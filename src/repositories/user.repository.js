@@ -16,7 +16,16 @@ class UserRepository {
 
   async create(data) {
     const user = new User(data);
-    return user.save();
+    await user.save();
+    // Nunca devolvemos el password, ni siquiera en la respuesta de creación.
+    const { password, ...safeUser } = user.toObject();
+    return safeUser;
+  }
+
+  async insertMany(users) {
+    // Inserción en lote, usada por el módulo de mocking.
+    const inserted = await User.insertMany(users);
+    return inserted.map(({ password, ...safeUser }) => safeUser);
   }
 
   async update(id, data) {

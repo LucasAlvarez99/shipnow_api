@@ -1,0 +1,21 @@
+const mongoose = require('mongoose');
+const { DELIVERY_STATUS } = require('../constants');
+
+const deliverySchema = new mongoose.Schema(
+  {
+    // Relación entrega ↔ pedido
+    order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true },
+    // Relación entrega ↔ repartidor (un User con role DELIVERY)
+    rider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    status: {
+      type: String,
+      enum: Object.values(DELIVERY_STATUS),
+      default: DELIVERY_STATUS.ASSIGNED,
+    },
+    estimatedDeliveryAt: { type: Date },
+    isDeleted: { type: Boolean, default: false },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model('Delivery', deliverySchema);
