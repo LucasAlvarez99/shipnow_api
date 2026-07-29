@@ -3,6 +3,9 @@ const userRepository = require('../repositories/user.repository');
 const orderRepository = require('../repositories/order.repository');
 const deliveryRepository = require('../repositories/delivery.repository');
 const { USER_ROLES, ORDER_STATUS, ORDER_PRIORITY, DELIVERY_STATUS } = require('../constants');
+const { InvalidMockQuantityError, DatabaseError } = require('../errors');
+
+const MOCK_QUANTITY_LIMITS = { min: 1, max: 50 };
 
 // -------- Helpers de generación aleatoria (sin librerías externas) --------
 
@@ -28,6 +31,25 @@ function randomEmail(name, index) {
 // -------- Generadores de entidades (objetos planos, sin guardar en DB) --------
 
 class MockService {
+  /**
+   * Valida las cantidades solicitadas para el mocking. Se detecta acá (en el
+   * Service), pero la respuesta HTTP la arma únicamente el middleware global.
+   * Cubre: valores faltantes, no numéricos, negativos, cero, decimales y
+   * cantidades excesivas (para evitar cargar de más la base por error).
+   */
+  validateQuantities({ users, orders, deliveries }) {
+    const fields = { users, orders, deliveries };
+
+    Object.entries(fields).forEach(([field, value]) => {
+      const isValidInteger = Number.isInteger(value);
+      const inRange = isValidInteger && value >= MOCK_QUANTITY_LIMITS.min && value <= MOCK_QUANTITY_LIMITS.max;
+
+      if (!inRange) {
+        throw new InvalidMockQuantityError(field, value);
+      }
+    });
+  }
+
   buildMockUser(index, role = USER_ROLES.USER) {
     const name = randomFullName();
     return {
@@ -65,6 +87,8 @@ class MockService {
    * de las relaciones se vea igual que en un dato real.
    */
   preview({ users = 5, orders = 5, deliveries = 5 } = {}) {
+    this.validateQuantities({ users, orders, deliveries });
+
     const fakeUserIds = Array.from({ length: users }, () => new mongoose.Types.ObjectId());
     const fakeRiderIds = Array.from({ length: Math.max(1, Math.ceil(users / 3)) }, () => new mongoose.Types.ObjectId());
     const fakeProductId = new mongoose.Types.ObjectId();
@@ -101,43 +125,52 @@ class MockService {
    * Inserta datos de prueba REALES en MongoDB, respetando las relaciones:
    * pedido -> usuario existente, entrega -> pedido y repartidor existentes.
    * Siempre pasa por los repositories, nunca toca Mongoose directamente.
+   * Cualquier falla durante la carga se traduce a un DatabaseError uniforme.
    */
   async seed({ users = 5, orders = 5, deliveries = 5 } = {}) {
-    const riderCount = Math.max(1, Math.ceil(users / 3));
+    this.validateQuantities({ users, orders, deliveries });
 
-    const newUsers = Array.from({ length: users }, (_, i) => this.buildMockUser(i, USER_ROLES.USER));
-    const newRiders = Array.from({ length: riderCount }, (_, i) =>
-      this.buildMockUser(users + i, USER_ROLES.DELIVERY)
-    );
+    try {
+      const riderCount = Math.max(1, Math.ceil(users / 3));
 
-    const insertedUsers = await userRepository.insertMany(newUsers);
-    const insertedRiders = await userRepository.insertMany(newRiders);
+      const newUsers = Array.from({ length: users }, (_, i) => this.buildMockUser(i, USER_ROLES.USER));
+      const newRiders = Array.from({ length: riderCount }, (_, i) =>
+        this.buildMockUser(users + i, USER_ROLES.DELIVERY)
+      );
 
-    // No dependemos de un Product real: si no hay ninguno cargado, el item queda sin product.
-    const newOrders = Array.from({ length: orders }, () =>
-      this.buildMockOrder(randomItem(insertedUsers)._id, undefined)
-    );
-    const insertedOrders = await orderRepository.insertMany(newOrders);
+      const insertedUsers = await userRepository.insertMany(newUsers);
+      const insertedRiders = await userRepository.insertMany(newRiders);
 
-    const newDeliveries = Array.from({ length: deliveries }, () =>
-      this.buildMockDelivery(randomItem(insertedOrders)._id, randomItem(insertedRiders)._id)
-    );
-    const insertedDeliveries = await deliveryRepository.insertMany(newDeliveries);
+      // No dependemos de un Product real: si no hay ninguno cargado, el item queda sin product.
+      const newOrders = Array.from({ length: orders }, () =>
+        this.buildMockOrder(randomItem(insertedUsers)._id, undefined)
+      );
+      const insertedOrders = await orderRepository.insertMany(newOrders);
 
-    return {
-      summary: {
-        usersCreated: insertedUsers.length,
-        ridersCreated: insertedRiders.length,
-        ordersCreated: insertedOrders.length,
-        deliveriesCreated: insertedDeliveries.length,
-      },
-      data: {
-        users: insertedUsers,
-        riders: insertedRiders,
-        orders: insertedOrders,
-        deliveries: insertedDeliveries,
-      },
-    };
+      const newDeliveries = Array.from({ length: deliveries }, () =>
+        this.buildMockDelivery(randomItem(insertedOrders)._id, randomItem(insertedRiders)._id)
+      );
+      const insertedDeliveries = await deliveryRepository.insertMany(newDeliveries);
+
+      return {
+        summary: {
+          usersCreated: insertedUsers.length,
+          ridersCreated: insertedRiders.length,
+          ordersCreated: insertedOrders.length,
+          deliveriesCreated: insertedDeliveries.length,
+        },
+        data: {
+          users: insertedUsers,
+          riders: insertedRiders,
+          orders: insertedOrders,
+          deliveries: insertedDeliveries,
+        },
+      };
+    } catch (err) {
+      // Si la validación de cantidades ya pasó, cualquier error de acá para
+      // abajo es una falla real de infraestructura (Mongo caído, timeout, etc.).
+      throw new DatabaseError(err.message);
+    }
   }
 }
 
