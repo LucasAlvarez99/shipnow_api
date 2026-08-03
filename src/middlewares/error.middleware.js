@@ -1,4 +1,5 @@
 const { AppError, ERROR_DICTIONARY } = require('../errors');
+const logger = require('../config/logger.config');
 
 /**
  * Middleware global de errores. ÚNICO lugar del proyecto que arma la
@@ -18,6 +19,13 @@ const { AppError, ERROR_DICTIONARY } = require('../errors');
 function errorMiddleware(err, req, res, next) {
   // Errores de dominio ya vienen con code/statusCode/details listos.
   if (err instanceof AppError) {
+    // Son errores ESPERADOS del negocio (usuario no encontrado, cantidad
+    // inválida, etc.), no bugs del servidor: se registran como advertencia.
+    logger.warning(`${err.code}: ${err.message}`, {
+      method: req.method,
+      path: req.originalUrl,
+      ...(err.details ? { details: err.details } : {}),
+    });
     return res.status(err.statusCode).json({
       error: {
         code: err.code,
@@ -30,6 +38,11 @@ function errorMiddleware(err, req, res, next) {
   // Errores típicos de Mongoose que no pasaron por un Service (ej: un ID
   // con formato inválido en la URL). Se traducen a una respuesta 400 uniforme.
   if (err.name === 'CastError') {
+    logger.warning(`VALIDATION_ERROR (CastError): ${err.message}`, {
+      method: req.method,
+      path: req.originalUrl,
+      details: { path: err.path, value: err.value },
+    });
     return res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
@@ -40,21 +53,33 @@ function errorMiddleware(err, req, res, next) {
   }
 
   if (err.name === 'ValidationError' && err.errors) {
+    const details = Object.keys(err.errors).reduce((acc, key) => {
+      acc[key] = err.errors[key].message;
+      return acc;
+    }, {});
+    logger.warning(`VALIDATION_ERROR (Mongoose): ${err.message}`, {
+      method: req.method,
+      path: req.originalUrl,
+      details,
+    });
     return res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
         message: ERROR_DICTIONARY.VALIDATION_ERROR.message,
-        details: Object.keys(err.errors).reduce((acc, key) => {
-          acc[key] = err.errors[key].message;
-          return acc;
-        }, {}),
+        details,
       },
     });
   }
 
-  // Cualquier otro error no anticipado: se loguea internamente (nunca se
-  // expone el stack ni el mensaje real al cliente) y se responde genérico.
-  console.error('[Unhandled error]', err);
+  // Cualquier otro error no anticipado (bug real del servidor): se
+  // registra como error, con el stack completo para poder investigarlo
+  // después en /logs/error-*.log. Nunca se expone el stack ni el mensaje
+  // real al cliente.
+  logger.error(`Error inesperado del servidor: ${err.message}`, {
+    method: req.method,
+    path: req.originalUrl,
+    stack: err.stack,
+  });
   return res.status(500).json({
     error: {
       code: 'INTERNAL_ERROR',

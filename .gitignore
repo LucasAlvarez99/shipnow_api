@@ -1,2 +1,7 @@
 node_modules/
 .env
+
+# Logs generados por Winston (la carpeta se documenta, los archivos no se versionan)
+logs/*.log
+logs/*.log.gz
+logs/.*-audit.json

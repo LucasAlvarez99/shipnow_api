@@ -1,26 +1,32 @@
-# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3)
+# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4)
 
 Refactorización de la API base de ShipNow a arquitectura por capas
 (Controller → Service → Repository) más una capa de configuración
 de entorno validada, un módulo de mocking para generar datos de
-prueba (usuarios, repartidores, pedidos y entregas), y una capa
-centralizada de manejo de errores.
+prueba (usuarios, repartidores, pedidos y entregas), una capa
+centralizada de manejo de errores, y un sistema de logging
+profesional con Winston conectado a esa capa de errores.
 
 ## Estructura
 
 ```
 src/
-  config/         -> validación y export de variables de entorno (env.config.js)
+  config/
+    env.config.js     -> validación y export de variables de entorno
+    logger.config.js  -> configuración centralizada de Winston (niveles, formato, transports)
   constants/      -> valores inmutables del dominio (roles, estados, prioridades)
   errors/         -> AppError base, diccionario de errores y errores de dominio
-  middlewares/    -> middleware global de manejo de errores
+  middlewares/
+    error.middleware.js      -> middleware global de manejo de errores (logueado con Winston)
+    httpLogger.middleware.js -> loguea cada request (nivel http)
   models/         -> esquemas de Mongoose (sin lógica de negocio)
   repositories/   -> único lugar que conoce Mongoose/MongoDB
   services/       -> lógica de negocio, valida y lanza errores de dominio
   controllers/    -> gestiona req/res, llama al service y delega errores con next(err)
   routes/         -> conecta cada path con su método del controller
-  app.js          -> configuración de Express + middleware global de errores
+  app.js          -> configuración de Express + middlewares globales
   server.js       -> punto de entrada, conecta a Mongo y levanta el server
+logs/             -> archivos de logs generados por Winston (no se versionan, ver .gitignore)
 ```
 
 ## Cómo correrlo localmente
@@ -101,6 +107,76 @@ Respuesta:
   }
 }
 ```
+
+## Logging y monitoreo (Módulo 4)
+
+Toda la aplicación usa un **logger centralizado con Winston**
+(`src/config/logger.config.js`) en lugar de `console.log()` sueltos.
+Cualquier archivo que necesite loguear algo importa ese mismo módulo:
+
+```js
+const logger = require('../config/logger.config');
+logger.info('Algo pasó');
+```
+
+**Niveles de log (de más a menos grave):**
+
+| Nivel | Uso |
+|---|---|
+| `fatal` | Falla crítica que impide arrancar el servidor (ej: no se pudo conectar a Mongo al iniciar) |
+| `error` | Error inesperado del servidor (bug real, no un error de negocio) |
+| `warning` | Error esperado del negocio (`AppError`): recurso no encontrado, validación fallida, cantidad de mock inválida, etc. |
+| `info` | Evento informativo relevante: servidor iniciado, conexión a Mongo, datos mock generados con éxito |
+| `http` | Una línea por cada request entrante (método, path, status, duración) |
+| `debug` | Detalle interno, solo útil en desarrollo |
+
+**Comportamiento según el entorno** (usa la misma variable `NODE_ENV`
+del Módulo 1, validada en `env.config.js`):
+- **`development`**: la consola muestra **todos** los niveles, incluido `debug`.
+- **`production`**: la consola solo muestra `info`, `warning`, `error` y `fatal`
+  (se omiten `debug` y `http` para no saturar los logs).
+
+**Dónde se usa el logger:**
+- `server.js` — arranque del servidor (`info`), conexión a MongoDB (`info`
+  si conecta, `fatal` si falla al arrancar, `error` si se cae después de
+  haber arrancado).
+- `middlewares/httpLogger.middleware.js` — loguea cada request (`http`).
+- `middlewares/error.middleware.js` — todo error que pasa por acá se
+  loguea: los `AppError` (negocio) como `warning`, y cualquier error no
+  anticipado como `error` (con el stack completo).
+- `services/mock.service.js` — generación de preview (`debug`) y
+  seed exitoso en MongoDB (`info`); si falla la inserción, se loguea
+  como `error` antes de traducirse a un `DatabaseError`.
+
+**Persistencia en archivos y rotación:**
+
+Los niveles `error` y `fatal` se guardan además en archivos dentro de
+`logs/`, con rotación diaria (`winston-daily-rotate-file`):
+- Un archivo nuevo por día: `logs/error-YYYY-MM-DD.log`.
+- Se conservan 14 días de historial (`maxFiles: '14d'`); los archivos
+  más viejos se eliminan automáticamente.
+- Los archivos rotados se comprimen (`zippedArchive: true`).
+- **Solo** quedan ahí los niveles `error` y `fatal` — ni `warning`, ni
+  `info`, ni `debug` (esos solo van a consola).
+
+La carpeta `logs/` está versionada (con un `.gitkeep`) para que quede
+documentada, pero los archivos `.log` y `.log.gz` que genera la app
+**no** se suben al repo (ver `.gitignore`).
+
+**Endpoint de prueba del logger:**
+
+`GET /api/logger/test` — endpoint interno, sin lógica de negocio, que
+dispara un log de cada uno de los 6 niveles. Sirve para verificar
+rápidamente que la configuración funciona:
+
+```
+curl.exe http://localhost:3000/api/logger/test
+```
+
+Después de llamarlo, revisá:
+- La consola (todos los niveles en desarrollo).
+- `logs/error-YYYY-MM-DD.log` (debería tener solo las líneas de
+  `error` y `fatal` de esa prueba).
 
 ## Endpoints
 

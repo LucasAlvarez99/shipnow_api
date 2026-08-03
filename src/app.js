@@ -1,10 +1,12 @@
 const express = require('express');
 const routes = require('./routes');
 const errorMiddleware = require('./middlewares/error.middleware');
+const httpLoggerMiddleware = require('./middlewares/httpLogger.middleware');
 
 const app = express();
 
 app.use(express.json());
+app.use(httpLoggerMiddleware);
 app.use('/api', routes);
 
 // Ruta no encontrada (ningún router la manejó).

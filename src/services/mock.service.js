@@ -4,6 +4,7 @@ const orderRepository = require('../repositories/order.repository');
 const deliveryRepository = require('../repositories/delivery.repository');
 const { USER_ROLES, ORDER_STATUS, ORDER_PRIORITY, DELIVERY_STATUS } = require('../constants');
 const { InvalidMockQuantityError, DatabaseError } = require('../errors');
+const logger = require('../config/logger.config');
 
 const MOCK_QUANTITY_LIMITS = { min: 1, max: 50 };
 
@@ -88,6 +89,7 @@ class MockService {
    */
   preview({ users = 5, orders = 5, deliveries = 5 } = {}) {
     this.validateQuantities({ users, orders, deliveries });
+    logger.debug('Generando preview de datos mock en memoria', { users, orders, deliveries });
 
     const fakeUserIds = Array.from({ length: users }, () => new mongoose.Types.ObjectId());
     const fakeRiderIds = Array.from({ length: Math.max(1, Math.ceil(users / 3)) }, () => new mongoose.Types.ObjectId());
@@ -152,13 +154,16 @@ class MockService {
       );
       const insertedDeliveries = await deliveryRepository.insertMany(newDeliveries);
 
+      const summary = {
+        usersCreated: insertedUsers.length,
+        ridersCreated: insertedRiders.length,
+        ordersCreated: insertedOrders.length,
+        deliveriesCreated: insertedDeliveries.length,
+      };
+      logger.info('Datos mock generados y guardados correctamente en MongoDB', summary);
+
       return {
-        summary: {
-          usersCreated: insertedUsers.length,
-          ridersCreated: insertedRiders.length,
-          ordersCreated: insertedOrders.length,
-          deliveriesCreated: insertedDeliveries.length,
-        },
+        summary,
         data: {
           users: insertedUsers,
           riders: insertedRiders,
@@ -169,6 +174,7 @@ class MockService {
     } catch (err) {
       // Si la validación de cantidades ya pasó, cualquier error de acá para
       // abajo es una falla real de infraestructura (Mongo caído, timeout, etc.).
+      logger.error(`Falló la generación de datos mock: ${err.message}`, { stack: err.stack });
       throw new DatabaseError(err.message);
     }
   }
