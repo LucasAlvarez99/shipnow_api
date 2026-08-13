@@ -1,0 +1,130 @@
+/**
+ * Solo documentación (JSDoc). La lógica real vive en routes/user.routes.js,
+ * controllers/user.controller.js y services/user.service.js.
+ */
+
+/**
+ * @openapi
+ * /users:
+ *   get:
+ *     tags: [Users]
+ *     summary: Listar usuarios
+ *     description: Devuelve todos los usuarios no eliminados (sin el campo password).
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/User'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *   post:
+ *     tags: [Users]
+ *     summary: Crear un usuario
+ *     description: >
+ *       Si no se envía `role`, se asigna USER por defecto (nunca ADMIN por
+ *       default, aunque se lo pidan explícitamente sin ser ADMIN válido).
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UserInput'
+ *     responses:
+ *       201:
+ *         description: Usuario creado (sin password en la respuesta).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Faltan campos obligatorios (name, email o password).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: >
+ *           Error interno (incluye el caso de email duplicado, que Mongo
+ *           rechaza por el índice `unique` y hoy cae como error genérico
+ *           500, no como un 409 específico).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *
+ * /users/{id}:
+ *   get:
+ *     tags: [Users]
+ *     summary: Obtener un usuario por ID
+ *     parameters:
+ *       - $ref: '#/components/parameters/UserId'
+ *     responses:
+ *       200:
+ *         description: Usuario encontrado.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *   put:
+ *     tags: [Users]
+ *     summary: Actualizar un usuario
+ *     parameters:
+ *       - $ref: '#/components/parameters/UserId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               role:
+ *                 type: string
+ *                 enum: [ADMIN, USER, DELIVERY]
+ *     responses:
+ *       200:
+ *         description: Usuario actualizado.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *   delete:
+ *     tags: [Users]
+ *     summary: Eliminar un usuario (borrado lógico)
+ *     parameters:
+ *       - $ref: '#/components/parameters/UserId'
+ *     responses:
+ *       204:
+ *         description: Usuario eliminado, sin contenido en la respuesta.
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *
+ * components:
+ *   parameters:
+ *     UserId:
+ *       in: path
+ *       name: id
+ *       required: true
+ *       schema:
+ *         type: string
+ *       description: ObjectId del usuario.
+ *       example: 64b1f0c2e1a2b3c4d5e6f7a8
+ */

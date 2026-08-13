@@ -20,6 +20,25 @@ class DeliveryRepository {
     return delivery.save();
   }
 
+  async update(id, data) {
+    return Delivery.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      data,
+      { new: true, runValidators: true }
+    )
+      .populate('order')
+      .populate('rider', 'name email role')
+      .select('-isDeleted -__v');
+  }
+
+  async softDelete(id) {
+    return Delivery.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      { isDeleted: true },
+      { new: true }
+    );
+  }
+
   async insertMany(deliveries) {
     return Delivery.insertMany(deliveries);
   }

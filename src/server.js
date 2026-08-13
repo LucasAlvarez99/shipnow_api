@@ -3,6 +3,24 @@ const env = require('./config/env.config');
 const logger = require('./config/logger.config');
 const app = require('./app');
 
+// Red de seguridad para errores que escapan de Express (no ocurrieron
+// dentro de un request, o alguien tiró una excepción fuera de una ruta):
+// sin esto, Node los imprime crudo por consola y Winston nunca se entera.
+// Son fallas críticas de un proceso en estado inconsistente, así que se
+// loguean como fatal y se corta el proceso (dejar el proceso vivo después
+// de un uncaughtException es la recomendación oficial de Node: puede
+// quedar en un estado corrupto).
+process.on('uncaughtException', (err) => {
+  logger.fatal(`Excepción no capturada: ${err.message}`, { stack: err.stack });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  logger.fatal(`Promise rechazada sin manejar: ${err.message}`, { stack: err.stack });
+  process.exit(1);
+});
+
 // Si la conexión se cae DESPUÉS del arranque exitoso (no en el connect()
 // inicial), Mongoose la reporta acá. No es un fallo de arranque, así que
 // se registra como error (no fatal): el proceso sigue vivo.

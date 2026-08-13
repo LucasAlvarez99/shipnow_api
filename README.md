@@ -1,19 +1,35 @@
-# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4)
+# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5)
 
 Refactorización de la API base de ShipNow a arquitectura por capas
 (Controller → Service → Repository) más una capa de configuración
 de entorno validada, un módulo de mocking para generar datos de
 prueba (usuarios, repartidores, pedidos y entregas), una capa
-centralizada de manejo de errores, y un sistema de logging
-profesional con Winston conectado a esa capa de errores.
+centralizada de manejo de errores, un sistema de logging
+profesional con Winston conectado a esa capa de errores, y
+documentación interactiva de la API con Swagger/OpenAPI.
+
+> **Nota sobre este módulo:** la consigna del Módulo 5 pide documentar
+> los tags Users, Orders, Deliveries, Mocks y Logger. Hasta el Módulo 4
+> el proyecto tenía modelos de `Order` y `Delivery` (usados por el
+> módulo de mocks) pero sin endpoints CRUD propios. Para poder
+> documentarlos de verdad —y no inventar en Swagger algo que la API no
+> hacía— se agregaron los endpoints reales de `Orders` y `Deliveries`
+> (mismo patrón Controller → Service → Repository que Products/Users)
+> en este mismo módulo. También se documentó `Products`, que ya existía
+> pero no estaba en la lista de tags pedida.
 
 ## Estructura
 
 ```
 src/
   config/
-    env.config.js     -> validación y export de variables de entorno
-    logger.config.js  -> configuración centralizada de Winston (niveles, formato, transports)
+    env.config.js      -> validación y export de variables de entorno
+    logger.config.js   -> configuración centralizada de Winston (niveles, formato, transports)
+    swagger.config.js  -> configuración centralizada de Swagger/OpenAPI (separada de las rutas)
+  docs/             -> SOLO documentación (bloques JSDoc @openapi), sin lógica:
+    schemas.docs.js    -> schemas reutilizables (User, Product, Order, Delivery, ErrorResponse, etc.)
+    products.docs.js, users.docs.js, orders.docs.js,
+    deliveries.docs.js, mocks.docs.js, logger.docs.js -> paths por módulo (uno por tag)
   constants/      -> valores inmutables del dominio (roles, estados, prioridades)
   errors/         -> AppError base, diccionario de errores y errores de dominio
   middlewares/
@@ -23,8 +39,8 @@ src/
   repositories/   -> único lugar que conoce Mongoose/MongoDB
   services/       -> lógica de negocio, valida y lanza errores de dominio
   controllers/    -> gestiona req/res, llama al service y delega errores con next(err)
-  routes/         -> conecta cada path con su método del controller
-  app.js          -> configuración de Express + middlewares globales
+  routes/         -> conecta cada path con su método del controller (SIN nada de Swagger acá)
+  app.js          -> configuración de Express + middlewares globales + monta Swagger UI
   server.js       -> punto de entrada, conecta a Mongo y levanta el server
 logs/             -> archivos de logs generados por Winston (no se versionan, ver .gitignore)
 ```
@@ -140,10 +156,16 @@ del Módulo 1, validada en `env.config.js`):
 - `server.js` — arranque del servidor (`info`), conexión a MongoDB (`info`
   si conecta, `fatal` si falla al arrancar, `error` si se cae después de
   haber arrancado).
+- `server.js` — además, captura `uncaughtException` y `unhandledRejection`
+  a nivel de proceso: cualquier error que escape de Express se loguea
+  como `fatal` con su stack, y recién ahí se corta el proceso con
+  `process.exit(1)`.
 - `middlewares/httpLogger.middleware.js` — loguea cada request (`http`).
 - `middlewares/error.middleware.js` — todo error que pasa por acá se
   loguea: los `AppError` (negocio) como `warning`, y cualquier error no
   anticipado como `error` (con el stack completo).
+- `app.js` — la ruta inexistente (404) se loguea como `warning` con
+  método y path, antes de responder al cliente.
 - `services/mock.service.js` — generación de preview (`debug`) y
   seed exitoso en MongoDB (`info`); si falla la inserción, se loguea
   como `error` antes de traducirse a un `DatabaseError`.
@@ -178,6 +200,66 @@ Después de llamarlo, revisá:
 - `logs/error-YYYY-MM-DD.log` (debería tener solo las líneas de
   `error` y `fatal` de esa prueba).
 
+## Documentación de la API con Swagger (Módulo 5)
+
+La API expone documentación interactiva (Swagger UI) donde se puede
+consultar **y probar** cada endpoint directamente desde el navegador:
+
+```
+http://localhost:3000/api/docs
+```
+
+(cambiá `3000` si usás otro `PORT` en tu `.env`).
+
+**Separación de responsabilidades:**
+- `src/config/swagger.config.js` es el ÚNICO archivo que arma la
+  especificación OpenAPI (info general, servers, tags) y monta Swagger
+  UI sobre la app (`setupSwagger(app)`, llamado una sola vez desde
+  `app.js`).
+- Ningún archivo de `routes/` o `controllers/` importa Swagger. Toda la
+  documentación de cada endpoint vive en `src/docs/*.docs.js`: archivos
+  que **solo contienen comentarios JSDoc** (`@openapi`), sin lógica de
+  rutas real. `swagger.config.js` le indica a `swagger-jsdoc` que
+  escanee ese glob (`src/docs/*.docs.js`), nunca los archivos de rutas.
+
+**Módulos documentados (tags):**
+
+| Tag | Archivo de docs | Endpoints |
+|---|---|---|
+| `Products` | `products.docs.js` | CRUD completo de productos |
+| `Users` | `users.docs.js` | CRUD completo de usuarios |
+| `Orders` | `orders.docs.js` | Listar, ver, crear, cambiar estado y eliminar pedidos |
+| `Deliveries` | `deliveries.docs.js` | Listar, ver, crear, cambiar estado y eliminar entregas |
+| `Mocks` | `mocks.docs.js` | Previsualizar (`GET /mocks`) e insertar (`POST /mocks/seed`) datos de prueba |
+| `Logger` | `logger.docs.js` | `GET /logger/test`, marcado explícitamente como herramienta interna, no funcionalidad de negocio |
+
+**Schemas reutilizables** (`src/docs/schemas.docs.js`, referenciados
+con `$ref` desde todos los demás): `User`, `UserInput`, `Product`,
+`Order`, `OrderInput`, `OrderItem`, `OrderStatusInput`, `Delivery`,
+`DeliveryInput`, `DeliveryStatusInput`, `ErrorResponse` y
+`SuccessResponse`. También hay `responses` reutilizables
+(`NotFound`, `ValidationError`, `InvalidStatus`, `InternalError`) para
+no repetir la misma forma de error una y otra vez.
+
+**Errores documentados** (coinciden con lo que la API devuelve
+realmente, ver `errors/error.dictionary.js`):
+- `VALIDATION_ERROR` (400) — datos inválidos o campos faltantes.
+- `*_NOT_FOUND` (404) — usuario, producto, pedido o entrega no encontrado.
+- `INVALID_STATUS` (400) — estado inválido al crear/actualizar pedidos o entregas.
+- `INVALID_MOCK_QUANTITY` (400) — cantidad inválida en los endpoints de mocks.
+- `DATABASE_ERROR` / `INTERNAL_ERROR` (500) — errores no anticipados del servidor.
+
+No se documentó autenticación porque la API no la implementa (no hay
+login ni tokens); tampoco se documentó `INVALID_ROLE`, ya que existe
+en el diccionario de errores pero ningún endpoint actual lo dispara.
+
+**Para probarlo:** entrá a `/api/docs`, abrí cualquier endpoint, click
+en "Try it out", completá los parámetros/body y "Execute". Como la API
+necesita Mongo corriendo, para probar creaciones/lecturas reales lo
+más rápido es primero pegarle a `POST /api/mocks/seed` desde el propio
+Swagger UI para tener usuarios/pedidos/entregas de prueba, y después
+usar esos IDs en los demás endpoints.
+
 ## Endpoints
 
 - `GET    /api/products`
@@ -186,6 +268,17 @@ Después de llamarlo, revisá:
 - `PUT    /api/products/:id`
 - `DELETE /api/products/:id`
 - (mismos verbos en `/api/users`)
+
+### Orders y Deliveries (Módulo 5)
+
+- `GET    /api/orders` — soporta `?status=` para filtrar.
+- `GET    /api/orders/:id`
+- `POST   /api/orders`
+- `PATCH  /api/orders/:id/status` — body `{ "status": "CONFIRMED" }`.
+- `DELETE /api/orders/:id`
+- (mismos endpoints en `/api/deliveries`)
+
+Ver el detalle completo (parámetros, bodies, respuestas y errores) en `/api/docs`.
 
 ### Mocking (Módulo 2)
 

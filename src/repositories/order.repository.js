@@ -19,6 +19,24 @@ class OrderRepository {
     return order.save();
   }
 
+  async update(id, data) {
+    return Order.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      data,
+      { new: true, runValidators: true }
+    )
+      .populate('user', 'name email role')
+      .select('-isDeleted -__v');
+  }
+
+  async softDelete(id) {
+    return Order.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      { isDeleted: true },
+      { new: true }
+    );
+  }
+
   async insertMany(orders) {
     // Inserción en lote, usada por el módulo de mocking.
     return Order.insertMany(orders);
