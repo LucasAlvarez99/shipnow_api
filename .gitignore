@@ -1,5 +1,6 @@
 node_modules/
 .env
+.env.test
 
 # Logs generados por Winston (la carpeta se documenta, los archivos no se versionan)
 logs/*.log

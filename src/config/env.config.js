@@ -1,5 +1,12 @@
+const path = require('path');
 const dotenv = require('dotenv');
-dotenv.config();
+
+// Entorno de testing separado del de desarrollo: cuando NODE_ENV=test
+// (lo setea el script "test" de package.json) se carga .env.test en vez
+// de .env, para que los tests usen su propia MONGODB_URI (una base
+// distinta a la de desarrollo) sin arriesgar tocar datos reales.
+const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
+dotenv.config({ path: path.resolve(__dirname, '..', '..', envFile) });
 
 /**
  * Lista de variables de entorno obligatorias.
