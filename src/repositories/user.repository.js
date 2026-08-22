@@ -24,8 +24,14 @@ class UserRepository {
 
   async insertMany(users) {
     // Inserción en lote, usada por el módulo de mocking.
+    // Ojo: hay que pasar por .toObject() antes de destructurar, igual que en
+    // create(). Si no, se pierde el _id (y el resto de los campos), porque
+    // un documento de Mongoose no es un objeto plano de JS.
     const inserted = await User.insertMany(users);
-    return inserted.map(({ password, ...safeUser }) => safeUser);
+    return inserted.map((doc) => {
+      const { password, ...safeUser } = doc.toObject();
+      return safeUser;
+    });
   }
 
   async update(id, data) {
