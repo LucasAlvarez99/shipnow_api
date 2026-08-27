@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { DELIVERY_STATUS } = require('../constants');
+const fileMetadataSchema = require('./fileMetadata.schema');
 
 const deliverySchema = new mongoose.Schema(
   {
@@ -13,6 +14,10 @@ const deliverySchema = new mongoose.Schema(
       default: DELIVERY_STATUS.ASSIGNED,
     },
     estimatedDeliveryAt: { type: Date },
+    // Metadatos de comprobantes de entrega subidos (Módulo 7). Es un
+    // array (no un único campo) porque una entrega puede necesitar más
+    // de un comprobante (ej: reintento tras una entrega fallida).
+    proofs: { type: [fileMetadataSchema], default: [] },
     isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }

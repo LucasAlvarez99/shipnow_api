@@ -6,3 +6,11 @@ node_modules/
 logs/*.log
 logs/*.log.gz
 logs/.*-audit.json
+
+# Archivos subidos por los usuarios (Módulo 7): la estructura de carpetas
+# se versiona (vía .gitkeep) para que quede documentada, pero el contenido
+# subido nunca va al repo.
+uploads/documentos-usuario/*
+!uploads/documentos-usuario/.gitkeep
+uploads/comprobantes-entrega/*
+!uploads/comprobantes-entrega/.gitkeep

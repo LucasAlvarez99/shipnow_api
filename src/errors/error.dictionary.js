@@ -23,6 +23,17 @@ const ERROR_DICTIONARY = Object.freeze({
     message: 'La cantidad de datos mock solicitada no es válida',
   },
 
+  // Módulo 7: carga de archivos
+  FILE_REQUIRED: { statusCode: 400, message: 'Debe adjuntar un archivo' },
+  INVALID_FILE_TYPE: { statusCode: 400, message: 'El tipo de archivo no es válido' },
+  FILE_TOO_LARGE: { statusCode: 400, message: 'El archivo supera el tamaño máximo permitido' },
+  INVALID_FILE_FIELD: {
+    statusCode: 400,
+    message: 'El campo del archivo enviado no coincide con el esperado',
+  },
+  INVALID_DOCUMENT_TYPE: { statusCode: 400, message: 'El tipo de documento indicado no es válido' },
+  FILE_UPLOAD_ERROR: { statusCode: 500, message: 'Ocurrió un error al guardar el archivo' },
+
   // Infraestructura
   DATABASE_ERROR: { statusCode: 500, message: 'Ocurrió un error al acceder a la base de datos' },
   INTERNAL_ERROR: { statusCode: 500, message: 'Error interno del servidor' },

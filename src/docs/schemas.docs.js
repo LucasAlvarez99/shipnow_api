@@ -26,6 +26,11 @@
  *           type: string
  *           enum: [ADMIN, USER, DELIVERY]
  *           example: USER
+ *         documents:
+ *           type: array
+ *           description: Metadatos de documentos subidos por el usuario (Módulo 7).
+ *           items:
+ *             $ref: '#/components/schemas/FileMetadata'
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -185,6 +190,11 @@
  *         estimatedDeliveryAt:
  *           type: string
  *           format: date-time
+ *         proofs:
+ *           type: array
+ *           description: Metadatos de comprobantes de entrega subidos (Módulo 7).
+ *           items:
+ *             $ref: '#/components/schemas/FileMetadata'
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -220,6 +230,45 @@
  *           type: string
  *           enum: [ASSIGNED, IN_PROGRESS, COMPLETED, FAILED]
  *           example: IN_PROGRESS
+ *
+ *     FileMetadata:
+ *       type: object
+ *       description: >
+ *         Metadatos de un archivo subido (Módulo 7). En la base SOLO se
+ *         guarda esto: el archivo en sí vive en el filesystem del servidor,
+ *         nunca dentro de MongoDB.
+ *       properties:
+ *         _id:
+ *           type: string
+ *           example: 64b1f0c2e1a2b3c4d5e6f7d1
+ *         originalName:
+ *           type: string
+ *           description: Nombre con el que el cliente subió el archivo.
+ *           example: dni-frente.pdf
+ *         generatedName:
+ *           type: string
+ *           description: Nombre único generado en el servidor (evita colisiones).
+ *           example: 1719000000000-3f9a2b7c1d0e4f5a.pdf
+ *         path:
+ *           type: string
+ *           description: Ruta relativa a la raíz del proyecto donde quedó guardado.
+ *           example: uploads/documentos-usuario/1719000000000-3f9a2b7c1d0e4f5a.pdf
+ *         mimeType:
+ *           type: string
+ *           example: application/pdf
+ *         size:
+ *           type: integer
+ *           description: Tamaño en bytes.
+ *           example: 204800
+ *         documentType:
+ *           type: string
+ *           description: >
+ *             DNI, LICENCIA u OTRO para documentos de usuario;
+ *             COMPROBANTE_ENTREGA (fijo) para comprobantes de entrega.
+ *           example: DNI
+ *         uploadedAt:
+ *           type: string
+ *           format: date-time
  *
  *     SuccessResponse:
  *       type: object
@@ -270,6 +319,30 @@
  *             $ref: '#/components/schemas/ErrorResponse'
  *     InternalError:
  *       description: Error inesperado del servidor.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *     FileRequired:
+ *       description: No se adjuntó ningún archivo en el campo esperado.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *     InvalidFileType:
+ *       description: El tipo de archivo (mimetype) no está permitido.
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *     FileTooLarge:
+ *       description: El archivo supera el tamaño máximo permitido (5 MB).
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ErrorResponse'
+ *     InvalidDocumentType:
+ *       description: El `documentType` enviado no pertenece al enum permitido.
  *       content:
  *         application/json:
  *           schema:

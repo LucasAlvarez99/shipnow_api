@@ -42,6 +42,20 @@ class DeliveryRepository {
   async insertMany(deliveries) {
     return Delivery.insertMany(deliveries);
   }
+
+  // Agrega un metadato de archivo al array `proofs` de la entrega
+  // (Módulo 7), igual que addDocument en UserRepository: $push atómico
+  // en vez de traer + guardar.
+  async addProof(id, proofMetadata) {
+    return Delivery.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      { $push: { proofs: proofMetadata } },
+      { new: true, runValidators: true }
+    )
+      .populate('order')
+      .populate('rider', 'name email role')
+      .select('-isDeleted -__v');
+  }
 }
 
 module.exports = new DeliveryRepository();

@@ -1,4 +1,4 @@
-# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5) + Testing (M6)
+# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5) + Testing (M6) + Carga de archivos (M7)
 
 Refactorización de la API base de ShipNow a arquitectura por capas
 (Controller → Service → Repository) más una capa de configuración
@@ -6,9 +6,10 @@ de entorno validada, un módulo de mocking para generar datos de
 prueba (usuarios, repartidores, pedidos y entregas), una capa
 centralizada de manejo de errores, un sistema de logging
 profesional con Winston conectado a esa capa de errores,
-documentación interactiva de la API con Swagger/OpenAPI, y una
+documentación interactiva de la API con Swagger/OpenAPI, una
 suite de tests funcionales automatizados con Mocha, Chai y
-Supertest.
+Supertest, y carga de archivos con Multer (documentos de usuario
+y comprobantes de entrega), integrada a todas las capas anteriores.
 
 > **Nota sobre este módulo:** la consigna del Módulo 5 pide documentar
 > los tags Users, Orders, Deliveries, Mocks y Logger. Hasta el Módulo 4
@@ -28,16 +29,18 @@ src/
     env.config.js      -> validación y export de variables de entorno
     logger.config.js   -> configuración centralizada de Winston (niveles, formato, transports)
     swagger.config.js  -> configuración centralizada de Swagger/OpenAPI (separada de las rutas)
+    multer.config.js   -> configuración centralizada de Multer (Módulo 7, separada de las rutas)
   docs/             -> SOLO documentación (bloques JSDoc @openapi), sin lógica:
-    schemas.docs.js    -> schemas reutilizables (User, Product, Order, Delivery, ErrorResponse, etc.)
+    schemas.docs.js    -> schemas reutilizables (User, Product, Order, Delivery, FileMetadata, ErrorResponse, etc.)
     products.docs.js, users.docs.js, orders.docs.js,
     deliveries.docs.js, mocks.docs.js, logger.docs.js -> paths por módulo (uno por tag)
-  constants/      -> valores inmutables del dominio (roles, estados, prioridades)
+  constants/      -> valores inmutables del dominio (roles, estados, prioridades, config de uploads)
   errors/         -> AppError base, diccionario de errores y errores de dominio
   middlewares/
     error.middleware.js      -> middleware global de manejo de errores (logueado con Winston)
     httpLogger.middleware.js -> loguea cada request (nivel http)
   models/         -> esquemas de Mongoose (sin lógica de negocio)
+    fileMetadata.schema.js -> subdocumento reutilizable de metadatos de archivo (Módulo 7)
   repositories/   -> único lugar que conoce Mongoose/MongoDB
   services/       -> lógica de negocio, valida y lanza errores de dominio
   controllers/    -> gestiona req/res, llama al service y delega errores con next(err)
@@ -45,9 +48,14 @@ src/
   app.js          -> configuración de Express + middlewares globales + monta Swagger UI
   server.js       -> punto de entrada, conecta a Mongo y levanta el server
 logs/             -> archivos de logs generados por Winston (no se versionan, ver .gitignore)
+uploads/          -> archivos subidos por Multer (Módulo 7); estructura versionada
+                     con .gitkeep, contenido no versionado (ver .gitignore)
+  documentos-usuario/   -> documentos de usuario (DNI, licencia, etc.)
+  comprobantes-entrega/ -> comprobantes asociados a una entrega
 test/             -> suite de tests funcionales (Mocha + Chai + Supertest, Módulo 6)
   setup.js            -> root hooks: conecta/limpia/desconecta la base de testing
   helpers/fixtures.js -> datos de prueba controlados y repetibles (usuarios, pedidos, etc.)
+  helpers/testFiles.js -> buffers de archivo en memoria para los tests de carga (Módulo 7)
   *.test.js           -> un archivo de tests por módulo de endpoints
 ```
 
@@ -325,11 +333,96 @@ nunca se asume que ya existen cargados a mano.
 | `test/logger.test.js` | `GET /api/logger/test` | Dispara los 6 niveles de log y devuelve el resumen esperado | — |
 | `test/docs.test.js` | `GET /api/docs` | Sirve la interfaz de Swagger UI (`text/html`) | — |
 | `test/notFound.test.js` | Cualquier ruta no manejada | — | `ROUTE_NOT_FOUND` (404), coherente con lo documentado en Swagger |
+| `test/uploads.test.js` | `POST /api/users/:id/documents`, `POST /api/deliveries/:id/proof` | Carga correcta de un documento de usuario y de un comprobante de entrega, con metadatos registrados | `FILE_REQUIRED`, `INVALID_FILE_TYPE`, `FILE_TOO_LARGE`, `INVALID_DOCUMENT_TYPE`, `USER_NOT_FOUND`, `DELIVERY_NOT_FOUND` |
 
 Cada test valida el status HTTP **y** la estructura del body (incluyendo,
 en los errores, el `code` definido en `errors/error.dictionary.js` y,
 cuando corresponde, el campo `details`), nunca solo que el endpoint
 "responda" o "falle".
+
+## Carga de archivos con Multer (Módulo 7)
+
+La API permite subir documentos y comprobantes vía `multipart/form-data`,
+validarlos, guardarlos en carpetas organizadas del servidor y asociar
+sus metadatos a una entidad existente (usuario o entrega). El archivo
+en sí **nunca** se guarda en MongoDB: la base solo conoce su nombre
+original, nombre generado, ruta, tipo, tamaño, tipo de documento y
+fecha de carga (ver schema `FileMetadata` en `/api/docs`).
+
+**Configuración centralizada** (`src/config/multer.config.js`, separada
+por completo de `routes/`):
+- Define dónde se guarda cada archivo (`uploads/documentos-usuario/`
+  y `uploads/comprobantes-entrega/`, creadas automáticamente al
+  arrancar la app si no existen).
+- Genera nombres únicos (`timestamp-random.ext`), nunca reutiliza el
+  nombre original del archivo.
+- Restringe los tipos aceptados (`application/pdf`, `image/jpeg`,
+  `image/png`) y el tamaño máximo (5 MB) — ambos configurables en
+  `constants/index.js` (`FILE_UPLOAD`).
+- Expone `handleMulterError`, un middleware que traduce los errores de
+  Multer (tamaño excedido, campo inesperado) al formato de error único
+  del proyecto, y `deleteUploadedFile`, usado por los controllers para
+  borrar un archivo ya guardado en disco si una validación posterior
+  (entidad inexistente, tipo de documento inválido) lo rechaza — así
+  nunca queda un archivo huérfano sin asociar a su entidad.
+
+**Endpoints:**
+
+- `POST /api/users/:id/documents` — sube un documento de usuario.
+  Campos del `multipart/form-data`:
+  - `file` (requerido): el archivo.
+  - `documentType` (requerido): `DNI`, `LICENCIA` u `OTRO`.
+
+  Verifica que el usuario exista, valida el archivo (tipo y tamaño,
+  vía Multer) y el `documentType` (vía el Service), y agrega el
+  metadato al array `documents` del usuario. Devuelve el usuario
+  actualizado (201).
+
+- `POST /api/deliveries/:id/proof` — sube un comprobante asociado a
+  una entrega. Campo del `multipart/form-data`:
+  - `file` (requerido): el archivo.
+
+  Verifica que la entrega exista, valida el archivo, y agrega el
+  metadato al array `proofs` de la entrega (es un array porque una
+  entrega puede tener más de un comprobante, por ejemplo tras un
+  reintento). Devuelve la entrega actualizada (201).
+
+**Errores específicos** (mismo formato uniforme que el resto de la API):
+
+| Código | Status | Cuándo ocurre |
+|---|---|---|
+| `FILE_REQUIRED` | 400 | No se adjuntó ningún archivo en el campo `file`. |
+| `INVALID_FILE_TYPE` | 400 | El mimetype del archivo no está permitido (solo PDF/JPG/PNG). |
+| `FILE_TOO_LARGE` | 400 | El archivo supera los 5 MB. |
+| `INVALID_FILE_FIELD` | 400 | El archivo llegó en un campo distinto a `file`. |
+| `INVALID_DOCUMENT_TYPE` | 400 | `documentType` no es `DNI`, `LICENCIA` ni `OTRO`. |
+| `USER_NOT_FOUND` / `DELIVERY_NOT_FOUND` | 404 | La entidad indicada en la URL no existe. |
+| `FILE_UPLOAD_ERROR` | 500 | Falla real al guardar el archivo (ej. error de disco). |
+
+**Logging:** cada carga exitosa (`Documento de usuario cargado
+correctamente`, `Comprobante asociado a la entrega correctamente`) se
+loguea en `info`; un intento con un tipo de archivo no permitido se
+loguea en `warning` desde el propio `fileFilter` de Multer; y
+cualquier error de carga (`AppError` o inesperado) queda registrado
+por el middleware global de errores, igual que el resto de la API.
+
+**Cómo probarlo con curl (PowerShell):**
+```
+curl.exe -X POST "http://localhost:3000/api/users/<ID_DE_UN_USUARIO>/documents" `
+  -F "documentType=DNI" `
+  -F "file=@C:\ruta\a\tu\archivo.pdf;type=application/pdf"
+```
+O directamente desde `/api/docs` (Swagger UI), donde ambos endpoints
+están documentados como `multipart/form-data` con "Try it out".
+
+**Tests funcionales** (`test/uploads.test.js`): carga correcta de un
+documento de usuario y de un comprobante de entrega, error sin
+archivo, error con tipo de archivo no permitido, error con archivo
+demasiado grande, error con `documentType` inválido y error cuando la
+entidad (usuario o entrega) no existe. Usa `test/helpers/testFiles.js`
+para adjuntar buffers en memoria (sin archivos temporales en disco) y
+limpia después de cada test los archivos reales que la app haya
+guardado en `uploads/`.
 
 ## Endpoints
 

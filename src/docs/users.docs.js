@@ -117,6 +117,55 @@
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *
+ * /users/{id}/documents:
+ *   post:
+ *     tags: [Users]
+ *     summary: Subir un documento de usuario (Módulo 7)
+ *     description: >
+ *       Recibe un archivo (DNI, licencia u otro documento) y lo asocia al
+ *       usuario indicado. El archivo se guarda en
+ *       `uploads/documentos-usuario/`; en la base solo se registran sus
+ *       metadatos (ver `FileMetadata`). Verifica primero que el usuario
+ *       exista, y valida el archivo (tipo, tamaño) y el `documentType`
+ *       enviado.
+ *     parameters:
+ *       - $ref: '#/components/parameters/UserId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file, documentType]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo a subir (PDF, JPG o PNG; máximo 5 MB).
+ *               documentType:
+ *                 type: string
+ *                 enum: [DNI, LICENCIA, OTRO]
+ *                 description: Tipo de documento que representa el archivo.
+ *     responses:
+ *       201:
+ *         description: Documento cargado y asociado al usuario.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
+ *       400:
+ *         description: >
+ *           Falta el archivo, el tipo de archivo no es permitido, supera
+ *           el tamaño máximo, o `documentType` no es válido.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *
  * components:
  *   parameters:
  *     UserId:

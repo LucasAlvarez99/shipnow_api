@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { USER_ROLES } = require('../constants');
+const fileMetadataSchema = require('./fileMetadata.schema');
 
 const userSchema = new mongoose.Schema(
   {
@@ -11,6 +12,9 @@ const userSchema = new mongoose.Schema(
       enum: Object.values(USER_ROLES),
       default: USER_ROLES.USER,
     },
+    // Metadatos de documentos subidos (DNI, licencia, etc. - Módulo 7).
+    // El archivo en sí vive en el filesystem, acá solo su información.
+    documents: { type: [fileMetadataSchema], default: [] },
     isDeleted: { type: Boolean, default: false },
   },
   { timestamps: true }

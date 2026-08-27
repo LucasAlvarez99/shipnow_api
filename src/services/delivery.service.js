@@ -1,6 +1,7 @@
 const deliveryRepository = require('../repositories/delivery.repository');
-const { DELIVERY_STATUS } = require('../constants');
-const { DeliveryNotFoundError, InvalidStatusError, ValidationError } = require('../errors');
+const { DELIVERY_STATUS, DELIVERY_DOCUMENT_TYPE } = require('../constants');
+const { toRelativePath } = require('../config/multer.config');
+const { DeliveryNotFoundError, InvalidStatusError, ValidationError, FileRequiredError } = require('../errors');
 const logger = require('../config/logger.config');
 
 class DeliveryService {
@@ -53,6 +54,37 @@ class DeliveryService {
       throw new DeliveryNotFoundError(id);
     }
     return deleted;
+  }
+
+  // Asocia un comprobante subido (Multer ya lo guardó en disco) a la
+  // entrega `id`. Mismo orden de validación que UserService.addDocument:
+  // primero que la entidad exista, después que haya llegado un archivo.
+  async addProof(deliveryId, file) {
+    const delivery = await deliveryRepository.getById(deliveryId);
+    if (!delivery) {
+      throw new DeliveryNotFoundError(deliveryId);
+    }
+
+    if (!file) {
+      throw new FileRequiredError();
+    }
+
+    const proofMetadata = {
+      originalName: file.originalname,
+      generatedName: file.filename,
+      path: toRelativePath(file.path),
+      mimeType: file.mimetype,
+      size: file.size,
+      documentType: DELIVERY_DOCUMENT_TYPE,
+      uploadedAt: new Date(),
+    };
+
+    const updated = await deliveryRepository.addProof(deliveryId, proofMetadata);
+    logger.info('Comprobante asociado a la entrega correctamente', {
+      deliveryId,
+      fileName: file.filename,
+    });
+    return updated;
   }
 }
 

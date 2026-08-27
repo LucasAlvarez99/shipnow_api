@@ -1,4 +1,5 @@
 const deliveryService = require('../services/delivery.service');
+const { deleteUploadedFile } = require('../config/multer.config');
 
 class DeliveryController {
   async getAll(req, res, next) {
@@ -43,6 +44,22 @@ class DeliveryController {
       await deliveryService.delete(req.params.id);
       res.status(204).send();
     } catch (err) {
+      next(err);
+    }
+  }
+
+  // POST /deliveries/:id/proof (multipart/form-data)
+  // Mismo criterio que UserController.uploadDocument: si el Service
+  // rechaza la operación (entrega inexistente), el archivo que Multer
+  // ya guardó en disco se borra para no dejarlo aislado sin asociar.
+  async uploadProof(req, res, next) {
+    try {
+      const delivery = await deliveryService.addProof(req.params.id, req.file);
+      res.status(201).json(delivery);
+    } catch (err) {
+      if (req.file) {
+        await deleteUploadedFile(req.file.path);
+      }
       next(err);
     }
   }

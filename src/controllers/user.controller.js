@@ -1,4 +1,5 @@
 const userService = require('../services/user.service');
+const { deleteUploadedFile } = require('../config/multer.config');
 
 class UserController {
   async getAll(req, res, next) {
@@ -42,6 +43,23 @@ class UserController {
       await userService.delete(req.params.id);
       res.status(204).send();
     } catch (err) {
+      next(err);
+    }
+  }
+
+  // POST /users/:id/documents (multipart/form-data)
+  // Multer (uploadUserDocument, ver routes/user.routes.js) ya validó el
+  // archivo y lo guardó en disco antes de llegar acá. Si el Service
+  // rechaza la operación (usuario inexistente, tipo de documento
+  // inválido), el archivo ya escrito se borra para no dejarlo huérfano.
+  async uploadDocument(req, res, next) {
+    try {
+      const user = await userService.addDocument(req.params.id, req.file, req.body.documentType);
+      res.status(201).json(user);
+    } catch (err) {
+      if (req.file) {
+        await deleteUploadedFile(req.file.path);
+      }
       next(err);
     }
   }

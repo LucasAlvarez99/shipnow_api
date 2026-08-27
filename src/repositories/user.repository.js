@@ -49,6 +49,17 @@ class UserRepository {
       { new: true }
     );
   }
+
+  // Agrega un metadato de archivo al array `documents` del usuario
+  // (Módulo 7). Usa $push en vez de traer + guardar para evitar pisar
+  // documentos agregados por otra request concurrente.
+  async addDocument(id, documentMetadata) {
+    return User.findOneAndUpdate(
+      { _id: id, isDeleted: false },
+      { $push: { documents: documentMetadata } },
+      { new: true, runValidators: true }
+    ).select('-password -isDeleted -__v');
+  }
 }
 
 module.exports = new UserRepository();

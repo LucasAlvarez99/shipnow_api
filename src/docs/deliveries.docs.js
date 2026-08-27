@@ -114,6 +114,50 @@
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *
+ * /deliveries/{id}/proof:
+ *   post:
+ *     tags: [Deliveries]
+ *     summary: Subir un comprobante de entrega (Módulo 7)
+ *     description: >
+ *       Recibe un archivo (foto o PDF del comprobante) y lo asocia a la
+ *       entrega indicada. El archivo se guarda en
+ *       `uploads/comprobantes-entrega/`; en la base solo se registran sus
+ *       metadatos (ver `FileMetadata`). Verifica primero que la entrega
+ *       exista, y valida el archivo (tipo, tamaño). Una entrega puede
+ *       tener más de un comprobante (ej: reintento tras una entrega
+ *       fallida), por eso `proofs` es un array.
+ *     parameters:
+ *       - $ref: '#/components/parameters/DeliveryId'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo del comprobante (PDF, JPG o PNG; máximo 5 MB).
+ *     responses:
+ *       201:
+ *         description: Comprobante cargado y asociado a la entrega.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Delivery'
+ *       400:
+ *         description: Falta el archivo, el tipo no es permitido, o supera el tamaño máximo.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalError'
+ *
  * components:
  *   parameters:
  *     DeliveryId:

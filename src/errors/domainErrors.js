@@ -66,6 +66,54 @@ class DatabaseError extends AppError {
   }
 }
 
+// --- Módulo 7: carga de archivos ---
+
+// No llegó ningún archivo en el campo esperado del multipart/form-data.
+class FileRequiredError extends AppError {
+  constructor() {
+    super('FILE_REQUIRED');
+  }
+}
+
+// El archivo llegó, pero su mimetype no está en la lista de permitidos
+// (lo detecta el fileFilter de Multer, ver config/multer.config.js).
+class InvalidFileTypeError extends AppError {
+  constructor(received, allowedValues = []) {
+    super('INVALID_FILE_TYPE', { received, allowed: allowedValues });
+  }
+}
+
+// Superó el tamaño máximo configurado en los `limits` de Multer.
+class FileTooLargeError extends AppError {
+  constructor(maxSizeBytes) {
+    super('FILE_TOO_LARGE', { maxSizeBytes });
+  }
+}
+
+// El archivo llegó en un campo (`fieldname`) distinto al que espera el
+// endpoint (Multer lo reporta como LIMIT_UNEXPECTED_FILE).
+class InvalidFileFieldError extends AppError {
+  constructor(expectedField, receivedField) {
+    super('INVALID_FILE_FIELD', { expectedField, received: receivedField });
+  }
+}
+
+// El `documentType` enviado no pertenece al enum permitido para documentos de usuario.
+class InvalidDocumentTypeError extends AppError {
+  constructor(received, allowedValues = []) {
+    super('INVALID_DOCUMENT_TYPE', { received, allowed: allowedValues });
+  }
+}
+
+// Multer terminó de procesar el archivo pero algo falló al persistirlo
+// (error de disco, permisos, etc.), o cualquier otro MulterError no
+// contemplado por los casos anteriores.
+class FileUploadError extends AppError {
+  constructor(originalMessage) {
+    super('FILE_UPLOAD_ERROR', { originalMessage });
+  }
+}
+
 module.exports = {
   UserNotFoundError,
   ProductNotFoundError,
@@ -77,4 +125,10 @@ module.exports = {
   ForbiddenError,
   InvalidMockQuantityError,
   DatabaseError,
+  FileRequiredError,
+  InvalidFileTypeError,
+  FileTooLargeError,
+  InvalidFileFieldError,
+  InvalidDocumentTypeError,
+  FileUploadError,
 };
