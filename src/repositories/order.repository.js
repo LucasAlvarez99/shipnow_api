@@ -2,10 +2,18 @@ const Order = require('../models/order.model');
 
 // Único lugar que conoce Mongoose para Order.
 class OrderRepository {
-  async getAll(filter = {}) {
-    return Order.find({ isDeleted: false, ...filter })
-      .populate('user', 'name email role')
-      .select('-isDeleted -__v');
+  // Paginado (Módulo 8): nunca devuelve la colección completa sin límite.
+  async getAll(filter = {}, { skip = 0, limit = 0 } = {}) {
+    const query = { isDeleted: false, ...filter };
+    const [items, total] = await Promise.all([
+      Order.find(query)
+        .populate('user', 'name email role')
+        .select('-isDeleted -__v')
+        .skip(skip)
+        .limit(limit),
+      Order.countDocuments(query),
+    ]);
+    return { items, total };
   }
 
   async getById(id) {

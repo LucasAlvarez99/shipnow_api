@@ -46,6 +46,11 @@ const swaggerDefinition = {
         'Endpoint interno de diagnóstico para validar el logger con Winston. ' +
         'No es una funcionalidad de negocio.',
     },
+    {
+      name: 'Health',
+      description:
+        'Health check para orquestadores/monitoreo (Módulo 8). Disponible en todos los entornos.',
+    },
   ],
 };
 

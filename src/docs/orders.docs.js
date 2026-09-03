@@ -9,7 +9,10 @@
  *   get:
  *     tags: [Orders]
  *     summary: Listar pedidos
- *     description: Devuelve todos los pedidos no eliminados, con el usuario populado.
+ *     description: >
+ *       Devuelve los pedidos no eliminados, con el usuario populado,
+ *       paginados (Módulo 8: nunca se devuelve la colección completa sin
+ *       límite).
  *     parameters:
  *       - in: query
  *         name: status
@@ -17,15 +20,24 @@
  *           type: string
  *           enum: [PENDING, CONFIRMED, IN_TRANSIT, DELIVERED, CANCELLED]
  *         description: Filtra los pedidos por estado exacto.
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
  *     responses:
  *       200:
- *         description: Lista de pedidos.
+ *         description: Página de pedidos.
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Order'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Order'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationMeta'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *   post:

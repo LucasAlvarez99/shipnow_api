@@ -1,11 +1,19 @@
 const Delivery = require('../models/delivery.model');
 
 class DeliveryRepository {
-  async getAll(filter = {}) {
-    return Delivery.find({ isDeleted: false, ...filter })
-      .populate('order')
-      .populate('rider', 'name email role')
-      .select('-isDeleted -__v');
+  // Paginado (Módulo 8): nunca devuelve la colección completa sin límite.
+  async getAll(filter = {}, { skip = 0, limit = 0 } = {}) {
+    const query = { isDeleted: false, ...filter };
+    const [items, total] = await Promise.all([
+      Delivery.find(query)
+        .populate('order')
+        .populate('rider', 'name email role')
+        .select('-isDeleted -__v')
+        .skip(skip)
+        .limit(limit),
+      Delivery.countDocuments(query),
+    ]);
+    return { items, total };
   }
 
   async getById(id) {

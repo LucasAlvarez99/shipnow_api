@@ -1,4 +1,4 @@
-# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5) + Testing (M6) + Carga de archivos (M7)
+# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5) + Testing (M6) + Carga de archivos (M7) + Performance, producción y Docker (M8)
 
 Refactorización de la API base de ShipNow a arquitectura por capas
 (Controller → Service → Repository) más una capa de configuración
@@ -8,8 +8,12 @@ centralizada de manejo de errores, un sistema de logging
 profesional con Winston conectado a esa capa de errores,
 documentación interactiva de la API con Swagger/OpenAPI, una
 suite de tests funcionales automatizados con Mocha, Chai y
-Supertest, y carga de archivos con Multer (documentos de usuario
-y comprobantes de entrega), integrada a todas las capas anteriores.
+Supertest, carga de archivos con Multer (documentos de usuario
+y comprobantes de entrega) integrada a todas las capas anteriores,
+y un último módulo que prepara todo esto para un entorno más
+cercano a producción: paginación en los listados, configuración
+por entorno reforzada, un health check, y la API contenerizada
+con Docker.
 
 > **Nota sobre este módulo:** la consigna del Módulo 5 pide documentar
 > los tags Users, Orders, Deliveries, Mocks y Logger. Hasta el Módulo 4
@@ -34,8 +38,10 @@ src/
     schemas.docs.js    -> schemas reutilizables (User, Product, Order, Delivery, FileMetadata, ErrorResponse, etc.)
     products.docs.js, users.docs.js, orders.docs.js,
     deliveries.docs.js, mocks.docs.js, logger.docs.js -> paths por módulo (uno por tag)
-  constants/      -> valores inmutables del dominio (roles, estados, prioridades, config de uploads)
+  constants/      -> valores inmutables del dominio (roles, estados, prioridades, config de uploads, paginación)
   errors/         -> AppError base, diccionario de errores y errores de dominio
+  utils/
+    pagination.js -> parsea/valida page y limit, y arma los metadatos de paginación (Módulo 8)
   middlewares/
     error.middleware.js      -> middleware global de manejo de errores (logueado con Winston)
     httpLogger.middleware.js -> loguea cada request (nivel http)
@@ -44,8 +50,9 @@ src/
   repositories/   -> único lugar que conoce Mongoose/MongoDB
   services/       -> lógica de negocio, valida y lanza errores de dominio
   controllers/    -> gestiona req/res, llama al service y delega errores con next(err)
+    health.controller.js -> health check de la API (Módulo 8)
   routes/         -> conecta cada path con su método del controller (SIN nada de Swagger acá)
-  app.js          -> configuración de Express + middlewares globales + monta Swagger UI
+  app.js          -> configuración de Express + middlewares globales + monta Swagger UI (solo fuera de producción)
   server.js       -> punto de entrada, conecta a Mongo y levanta el server
 logs/             -> archivos de logs generados por Winston (no se versionan, ver .gitignore)
 uploads/          -> archivos subidos por Multer (Módulo 7); estructura versionada
@@ -57,6 +64,9 @@ test/             -> suite de tests funcionales (Mocha + Chai + Supertest, Módu
   helpers/fixtures.js -> datos de prueba controlados y repetibles (usuarios, pedidos, etc.)
   helpers/testFiles.js -> buffers de archivo en memoria para los tests de carga (Módulo 7)
   *.test.js           -> un archivo de tests por módulo de endpoints
+Dockerfile          -> imagen de producción, multi-stage (Módulo 8)
+.dockerignore       -> archivos que nunca entran a la imagen (Módulo 8)
+docker-compose.yml  -> API + MongoDB con un solo comando, para probar todo local (Módulo 8)
 ```
 
 ## Cómo correrlo localmente
@@ -73,8 +83,16 @@ test/             -> suite de tests funcionales (Mocha + Chai + Supertest, Módu
    ```
    npm run dev
    ```
-   Si falta `MONGODB_URI` (o cualquier otra variable obligatoria), la app
-   tira un error descriptivo al arrancar y no levanta el servidor.
+   Si falta `MONGODB_URI`, `LOG_LEVEL` (o cualquier otra variable
+   obligatoria), o si alguna tiene un valor no permitido (`NODE_ENV` que
+   no sea `development`/`test`/`production`, `LOG_LEVEL` que no sea uno
+   de los 6 niveles válidos, `PORT` que no sea un entero positivo), la
+   app tira un error descriptivo al arrancar y **no levanta el
+   servidor** (ver "Preparación para producción" más abajo).
+
+También se puede correr con Docker (imagen sola o el stack completo con
+Mongo incluido vía `docker-compose`); ver "Performance, preparación
+para producción y Docker (Módulo 8)" más abajo.
 
 ## Manejo de errores (Módulo 3)
 
@@ -200,6 +218,9 @@ documentada, pero los archivos `.log` y `.log.gz` que genera la app
 **no** se suben al repo (ver `.gitignore`).
 
 **Endpoint de prueba del logger:**
+
+> **No disponible en producción** (`NODE_ENV=production`): ver
+> "Criterio sobre endpoints internos" en el Módulo 8, más abajo.
 
 `GET /api/logger/test` — endpoint interno, sin lógica de negocio, que
 dispara un log de cada uno de los 6 niveles. Sirve para verificar
@@ -327,13 +348,21 @@ nunca se asume que ya existen cargados a mano.
 
 | Archivo | Endpoints | Casos exitosos | Casos de error |
 |---|---|---|---|
-| `test/users.test.js` | `GET /api/users`, `GET /api/users/:id` | Listado vacío y con usuarios (sin exponer `password`) | `USER_NOT_FOUND` (404) |
-| `test/orders.test.js` | `GET /api/orders`, `GET /api/orders/:id`, `POST /api/orders`, `PATCH /api/orders/:id/status` | Listar, ver por ID, crear con datos válidos, actualizar a un estado válido | `VALIDATION_ERROR` (400, datos incompletos), `ORDER_NOT_FOUND` (404), `INVALID_STATUS` (400) |
+| `test/users.test.js` | `GET /api/users`, `GET /api/users/:id` | Listado paginado (vacío y con usuarios, sin exponer `password`), `?page=`/`?limit=` | `USER_NOT_FOUND` (404), `VALIDATION_ERROR` (400, `limit` fuera de rango) |
+| `test/orders.test.js` | `GET /api/orders`, `GET /api/orders/:id`, `POST /api/orders`, `PATCH /api/orders/:id/status` | Listar (paginado), ver por ID, crear con datos válidos, actualizar a un estado válido | `VALIDATION_ERROR` (400, datos incompletos o `page` inválido), `ORDER_NOT_FOUND` (404), `INVALID_STATUS` (400) |
 | `test/mocks.test.js` | `GET /api/mocks`, `POST /api/mocks/seed` | Preview en memoria (no persiste nada) y seed real en Mongo | `INVALID_MOCK_QUANTITY` (400, cantidad negativa o no numérica) |
 | `test/logger.test.js` | `GET /api/logger/test` | Dispara los 6 niveles de log y devuelve el resumen esperado | — |
 | `test/docs.test.js` | `GET /api/docs` | Sirve la interfaz de Swagger UI (`text/html`) | — |
+| `test/health.test.js` | `GET /api/health` | Devuelve `status`/`environment`/`uptime`/`timestamp`, sin exponer `MONGODB_URI` (Módulo 8) | — |
 | `test/notFound.test.js` | Cualquier ruta no manejada | — | `ROUTE_NOT_FOUND` (404), coherente con lo documentado en Swagger |
 | `test/uploads.test.js` | `POST /api/users/:id/documents`, `POST /api/deliveries/:id/proof` | Carga correcta de un documento de usuario y de un comprobante de entrega, con metadatos registrados | `FILE_REQUIRED`, `INVALID_FILE_TYPE`, `FILE_TOO_LARGE`, `INVALID_DOCUMENT_TYPE`, `USER_NOT_FOUND`, `DELIVERY_NOT_FOUND` |
+
+> **Nota (Módulo 8):** `products.test.js` y `deliveries.test.js` no
+> existían antes de este módulo y siguen sin un archivo dedicado; sus
+> endpoints de listado se paginaron con el mismo mecanismo y los mismos
+> criterios que `users`/`orders` (ver `utils/pagination.js`), verificado
+> manualmente. Queda como deuda técnica agregarles cobertura propia en
+> una futura entrega.
 
 Cada test valida el status HTTP **y** la estructura del body (incluyendo,
 en los errores, el `code` definido en `errors/error.dictionary.js` y,
@@ -424,27 +453,217 @@ para adjuntar buffers en memoria (sin archivos temporales en disco) y
 limpia después de cada test los archivos reales que la app haya
 guardado en `uploads/`.
 
+## Performance, preparación para producción y Docker (Módulo 8)
+
+Último módulo: prepara el proyecto para un entorno más cercano a
+producción, sobre tres ejes.
+
+### 1. Performance
+
+**Paginación en los listados** (`src/utils/pagination.js`): ningún
+endpoint de listado (`GET /api/products`, `/api/users`, `/api/orders`,
+`/api/deliveries`) devuelve la colección completa sin control. Todos
+aceptan `?page=` (default `1`) y `?limit=` (default `20`, **máximo
+100** aunque se pida más), y devuelven:
+```json
+{
+  "data": [ /* items de esta página */ ],
+  "pagination": { "page": 1, "limit": 20, "total": 57, "totalPages": 3 }
+}
+```
+`page`/`limit` inválidos (no enteros, `page < 1`, `limit` fuera de
+1–100) devuelven 400 `VALIDATION_ERROR`, igual que cualquier otro dato
+mal formado en la API. La validación vive en un único lugar
+(`utils/pagination.js`), la usan los 4 Controllers, y cada Repository
+resuelve la página con `.skip()/.limit()` **más** un `countDocuments()`
+sobre el mismo filtro (para que `totalPages` sea siempre coherente con
+lo que se puede paginar).
+
+**Otros puntos ya cubiertos desde módulos anteriores** (se revisaron,
+no se tocaron):
+- Carga de archivos con límites: tamaño máximo (5 MB), tipos
+  restringidos (`FILE_UPLOAD` en `constants/index.js`), errores
+  controlados (`handleMulterError`), y los archivos se guardan **fuera**
+  de `src/`, en `uploads/`, nunca como "almacenamiento permanente sin
+  criterio" (son metadatos + archivo en disco, no un blob en Mongo).
+- Body JSON con límite explícito (`express.json({ limit: '1mb' })`,
+  Módulo 8): antes no tenía límite explícito (quedaba en el default de
+  Express, 100kb, pero sin que quedara documentado como una decisión).
+- No hay queries sin filtro fuera de los listados ya paginados, ni
+  logs excesivos (Winston ya diferenciaba niveles desde el Módulo 4), ni
+  operaciones síncronas que bloqueen el Event Loop (toda la app es
+  async/await sobre Mongoose; Multer procesa los uploads a disco de
+  forma asincrónica).
+
+### 2. Preparación para producción
+
+**Variables de entorno** (`src/config/env.config.js`), separadas por
+archivo según el entorno (`.env` para development, `.env.test` para
+testing — ninguno de los dos se versiona, ver `.gitignore`):
+
+| Variable | Obligatoria | Valores válidos | Para qué |
+|---|---|---|---|
+| `PORT` | Sí | Entero positivo | Puerto donde escucha el servidor |
+| `MONGODB_URI` | Sí | — | Conexión a MongoDB |
+| `NODE_ENV` | Sí | `development`, `test`, `production` | Entorno de ejecución |
+| `LOG_LEVEL` | Sí | `fatal`, `error`, `warning`, `info`, `http`, `debug` | Techo de logs de Winston (Módulo 8; antes salía de un `if (NODE_ENV === 'production')` hardcodeado) |
+
+**Sobre las dos variables que la consigna pide "si aplica" y no están
+en la lista:** secreto de JWT y URLs de servicios externos no aplican
+hoy — la API no implementa autenticación (no hay login ni tokens en
+ningún endpoint) y no integra con ningún servicio de terceros. El día
+que se agregue cualquiera de las dos, se sumarían acá como variables
+obligatorias, nunca hardcodeadas en el código; queda documentado para
+que la ausencia sea una decisión explícita y no un descuido.
+
+`.env.example` y `.env.test.example` están actualizados con las 4
+variables (incluida `LOG_LEVEL`, agregada en este módulo) y comentarios
+sobre qué valor usar en cada caso.
+
+**Validación al arrancar:** si falta alguna variable obligatoria, o si
+`NODE_ENV`/`LOG_LEVEL` no tienen uno de sus valores válidos, o si
+`PORT` no es un entero positivo, `env.config.js` tira un error
+descriptivo y **el proceso no arranca** (falla rápido, con un mensaje
+claro de qué variable está mal y qué valores acepta — no un stack trace
+genérico de Mongoose intentando conectar a una URI vacía).
+
+**Health check:** `GET /api/health`, disponible en **todos** los
+entornos (a diferencia de `/mocks` y `/logger/test`, ver abajo).
+Devuelve estado del proceso, entorno, uptime y timestamp — **sin**
+exponer `MONGODB_URI` ni ningún otro detalle de infraestructura:
+```json
+{ "status": "ok", "environment": "production", "uptime": 12345.67, "timestamp": "2026-09-02T19:00:00.000Z" }
+```
+`status` es `"degraded"` (con HTTP 503) si el proceso está vivo pero
+Mongo no está conectado en ese momento — así un orquestador (o el
+`HEALTHCHECK` del propio Dockerfile) puede diferenciar "el contenedor
+no arrancó" de "arrancó pero no puede hablar con la base".
+
+**Criterio sobre endpoints internos en producción** (`GET /api/mocks`,
+`POST /api/mocks/seed`, `GET /api/logger/test`, y Swagger UI en
+`/api/docs`): se **desmontan por completo** cuando `NODE_ENV=production`
+(`routes/index.js` y `app.js` los excluyen condicionalmente antes de
+montar las rutas). Una request a cualquiera de esos paths en producción
+cae en el 404 genérico `ROUTE_NOT_FOUND`, sin revelar que alguna vez
+existieron. Fuera de producción (`development`/`test`) siguen
+disponibles sin restricciones — de hecho los tests de `mocks.test.js`,
+`logger.test.js` y `docs.test.js` corren con `NODE_ENV=test` y siguen
+pasando igual que antes.
+
+Motivo de la decisión: `POST /api/mocks/seed` **escribe** datos falsos
+en la base (peligroso en producción), `GET /api/logger/test` es puro
+ruido de diagnóstico, y Swagger UI expone la forma completa de la API
+(paths, schemas, ejemplos) sin aportarle nada a un cliente real en
+producción. `GET /api/mocks` (el preview en memoria, que no escribe
+nada) se desmontó junto con `seed` por simplicidad: viven bajo el mismo
+Router y la misma razón de ser ("herramienta de day-to-day dev", no
+funcionalidad de negocio).
+
+**Cómo verificarlo:** con `NODE_ENV=production` en el `.env` (y
+`MONGODB_URI`/`LOG_LEVEL` válidos), levantar el server y confirmar:
+```
+curl.exe http://localhost:3000/api/health          # 200, status "ok"
+curl.exe http://localhost:3000/api/docs             # 404 ROUTE_NOT_FOUND
+curl.exe http://localhost:3000/api/mocks            # 404 ROUTE_NOT_FOUND
+curl.exe http://localhost:3000/api/logger/test      # 404 ROUTE_NOT_FOUND
+```
+
+### 3. Docker
+
+**`Dockerfile`** (multi-stage):
+1. Stage `deps`: instala **solo** dependencias de producción (`npm ci
+   --omit=dev`, sin Mocha/Chai/Supertest/nodemon/cross-env) — separado
+   en su propio stage para aprovechar la cache de Docker entre builds.
+2. Stage `runner`: parte de `node:22-alpine`, copia el `node_modules`
+   ya resuelto del stage anterior más `src/` y `package.json`, crea las
+   carpetas `logs/` y `uploads/*` con ownership del usuario `node`
+   (no-root, ya incluido en la imagen base), y corre la app con `node
+   src/server.js` (mismo script que `npm start`) **sin privilegios de
+   root**.
+3. Expone el puerto `3000` (default documentado; el real lo define
+   `PORT` en runtime) y define un `HEALTHCHECK` que pega contra
+   `/api/health` cada 30s usando `wget` (ya incluido en la imagen
+   alpine, no hace falta instalar `curl` aparte).
+
+**`.dockerignore`**: excluye como mínimo `node_modules/`, `.env` /
+`.env.test` / `.env.docker`, `.git/`, logs generados
+(`logs/*.log*`), uploads generados (contenido de
+`uploads/documentos-usuario/` y `uploads/comprobantes-entrega/`),
+`coverage/` y archivos temporales — además de `test/` y
+`.mocharc.json` (no hacen falta para correr la API en producción,
+mantienen la imagen liviana y no exponen la suite de tests).
+
+**Variables de entorno del contenedor**: nunca se hornean en el build.
+Se pasan en runtime, con `--env-file` o `-e`:
+```
+docker build -t shipnow-api .
+
+# Opción A: archivo externo (recomendado)
+docker run --env-file .env -p 3000:3000 shipnow-api
+
+# Opción B: variables sueltas
+docker run \
+  -e PORT=3000 \
+  -e MONGODB_URI=mongodb://host.docker.internal:27017/shipnow \
+  -e NODE_ENV=production \
+  -e LOG_LEVEL=info \
+  -p 3000:3000 \
+  shipnow-api
+```
+Con el contenedor corriendo, se puede probar como mínimo:
+```
+curl.exe http://localhost:3000/api/health   # health check
+curl.exe http://localhost:3000/api/products # endpoint principal (paginado)
+```
+(Swagger no responde acá porque `NODE_ENV=production` lo desmonta, ver
+arriba — para probarlo dentro del contenedor hay que correrlo con
+`NODE_ENV=development` en su lugar.)
+
+**`docker-compose.yml`** (extra, no pedido explícitamente pero incluido
+para poder levantar todo el stack —API + MongoDB— con un solo comando,
+sin depender de un Mongo instalado a mano en el host):
+```
+cp .env.docker.example .env.docker
+docker compose up --build
+```
+Levanta la API en `http://localhost:3000` y Mongo en el puerto `27017`
+del host (por si se lo quiere inspeccionar con Compass/`mongosh` desde
+afuera del contenedor). El servicio `api` espera a que el `healthcheck`
+de `mongo` esté en verde antes de arrancar (`depends_on: condition:
+service_healthy`), así nunca intenta conectar contra un Mongo que
+todavía está inicializando.
+
 ## Endpoints
 
-- `GET    /api/products`
+- `GET    /api/products` — paginado, soporta `?onlyAvailable=`, `?page=`, `?limit=` (Módulo 8).
 - `GET    /api/products/:id`
 - `POST   /api/products`
 - `PUT    /api/products/:id`
 - `DELETE /api/products/:id`
-- (mismos verbos en `/api/users`)
+- (mismos verbos en `/api/users`, también paginado en su `GET` de listado)
 
 ### Orders y Deliveries (Módulo 5)
 
-- `GET    /api/orders` — soporta `?status=` para filtrar.
+- `GET    /api/orders` — paginado, soporta `?status=`, `?page=`, `?limit=` (Módulo 8).
 - `GET    /api/orders/:id`
 - `POST   /api/orders`
 - `PATCH  /api/orders/:id/status` — body `{ "status": "CONFIRMED" }`.
 - `DELETE /api/orders/:id`
-- (mismos endpoints en `/api/deliveries`)
+- (mismos endpoints en `/api/deliveries`, también paginado en su `GET` de listado)
 
-Ver el detalle completo (parámetros, bodies, respuestas y errores) en `/api/docs`.
+Ver el detalle completo (parámetros, bodies, respuestas y errores) en `/api/docs`
+(no disponible en producción, ver Módulo 8 más abajo).
+
+### Health check (Módulo 8)
+
+- `GET /api/health` — estado de la API. Disponible en todos los entornos,
+  incluida producción. Ver detalle en la sección "Performance, preparación
+  para producción y Docker" más abajo.
 
 ### Mocking (Módulo 2)
+
+> **No disponibles en producción** (`NODE_ENV=production`): ver
+> "Criterio sobre endpoints internos" en el Módulo 8, más abajo.
 
 - `GET  /api/mocks` — devuelve datos simulados **sin guardarlos** en la base.
   Acepta query params opcionales para definir cuántos registros generar:

@@ -9,16 +9,29 @@
  *   get:
  *     tags: [Users]
  *     summary: Listar usuarios
- *     description: Devuelve todos los usuarios no eliminados (sin el campo password).
+ *     description: >
+ *       Devuelve los usuarios no eliminados (sin el campo password),
+ *       paginados (Módulo 8: nunca se devuelve la colección completa sin
+ *       límite).
+ *     parameters:
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
  *     responses:
  *       200:
- *         description: Lista de usuarios.
+ *         description: Página de usuarios.
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationMeta'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *   post:

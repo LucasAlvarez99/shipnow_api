@@ -1,0 +1,44 @@
+# Stack completo (API + MongoDB) para levantar todo con un solo comando,
+# sin depender de un Mongo instalado a mano en el host. Es un extra sobre
+# lo pedido por la consigna (que solo pide poder correr el contenedor de
+# la API sola, recibiendo variables desde afuera): acá se muestra ese
+# mismo mecanismo (env_file) resuelto de punta a punta.
+#
+# Uso:
+#   cp .env.docker.example .env.docker   (completar si hace falta)
+#   docker compose up --build
+#
+# La API queda en http://localhost:3000 (o el PORT que se defina en
+# .env.docker) y Mongo en el puerto 27017 del host, por si se quiere
+# inspeccionar con Compass/mongosh desde afuera del contenedor.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.docker
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - shipnow_mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  shipnow_mongo_data:

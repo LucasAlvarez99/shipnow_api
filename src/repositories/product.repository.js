@@ -5,8 +5,17 @@ const Product = require('../models/product.model');
 // NO contiene lógica de negocio (eso vive en el Service).
 
 class ProductRepository {
-  async getAll(filter = {}) {
-    return Product.find({ isDeleted: false, ...filter }).select('-isDeleted -__v');
+  // Paginado (Módulo 8): nunca devuelve la colección completa sin
+  // límite. `total` se calcula con countDocuments sobre el MISMO filtro
+  // que la query de datos, para que `totalPages` sea consistente con lo
+  // que efectivamente se puede paginar (no cuenta los borrados lógicos).
+  async getAll(filter = {}, { skip = 0, limit = 0 } = {}) {
+    const query = { isDeleted: false, ...filter };
+    const [items, total] = await Promise.all([
+      Product.find(query).select('-isDeleted -__v').skip(skip).limit(limit),
+      Product.countDocuments(query),
+    ]);
+    return { items, total };
   }
 
   async getById(id) {

@@ -2,15 +2,19 @@ const orderRepository = require('../repositories/order.repository');
 const { ORDER_STATUS, ORDER_PRIORITY } = require('../constants');
 const { OrderNotFoundError, InvalidStatusError, ValidationError } = require('../errors');
 const logger = require('../config/logger.config');
+const { buildPaginationMeta } = require('../utils/pagination');
 
 // Acá vive la lógica de negocio de pedidos. El Service nunca habla con
 // Mongoose directamente, siempre pasa por el Repository. Los errores se
 // detectan y lanzan ACÁ; la respuesta HTTP la arma solo el middleware global.
 
 class OrderService {
-  async getAll({ status } = {}) {
+  // `page`/`limit` ya vienen validados por el Controller (Módulo 8).
+  async getAll({ status, page, limit } = {}) {
     const filter = status ? { status } : {};
-    return orderRepository.getAll(filter);
+    const skip = (page - 1) * limit;
+    const { items, total } = await orderRepository.getAll(filter, { skip, limit });
+    return { data: items, pagination: buildPaginationMeta({ page, limit, total }) };
   }
 
   async getById(id) {

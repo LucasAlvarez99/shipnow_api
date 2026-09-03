@@ -1,8 +1,15 @@
 const User = require('../models/user.model');
 
 class UserRepository {
-  async getAll() {
-    return User.find({ isDeleted: false }).select('-password -isDeleted -__v');
+  // Paginado (Módulo 8), mismo criterio que el resto de los Repositories:
+  // nunca devuelve la colección completa sin límite.
+  async getAll({ skip = 0, limit = 0 } = {}) {
+    const query = { isDeleted: false };
+    const [items, total] = await Promise.all([
+      User.find(query).select('-password -isDeleted -__v').skip(skip).limit(limit),
+      User.countDocuments(query),
+    ]);
+    return { items, total };
   }
 
   async getById(id) {

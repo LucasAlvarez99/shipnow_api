@@ -1,15 +1,21 @@
 const productRepository = require('../repositories/product.repository');
 const { PRODUCT_STATUS } = require('../constants');
 const { ProductNotFoundError, InvalidStatusError, ValidationError } = require('../errors');
+const { buildPaginationMeta } = require('../utils/pagination');
 
 // Acá vive la lógica de negocio: qué mostrar, qué calcular, qué validar.
 // El Service NUNCA habla con Mongoose directamente, siempre pasa por el Repository.
 // Los errores se detectan y lanzan ACÁ; la respuesta HTTP la arma solo el middleware global.
 
 class ProductService {
-  async getAll({ onlyAvailable } = {}) {
+  // `page`/`limit` ya vienen validados por el Controller (ver
+  // utils/pagination.js). El Service solo traduce a `skip` para el
+  // Repository y arma la respuesta paginada (Módulo 8).
+  async getAll({ onlyAvailable, page, limit } = {}) {
     const filter = onlyAvailable ? { status: PRODUCT_STATUS.AVAILABLE } : {};
-    return productRepository.getAll(filter);
+    const skip = (page - 1) * limit;
+    const { items, total } = await productRepository.getAll(filter, { skip, limit });
+    return { data: items, pagination: buildPaginationMeta({ page, limit, total }) };
   }
 
   async getById(id) {

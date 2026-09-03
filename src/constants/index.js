@@ -54,6 +54,18 @@ const FILE_UPLOAD = Object.freeze({
   FIELD_NAME: 'file',
 });
 
+// Paginación (Módulo 8) para los endpoints que devuelven listas
+// (productos, usuarios, pedidos, entregas): nunca se devuelve la
+// colección completa sin límite. DEFAULT_LIMIT se aplica cuando no se
+// manda `limit`; MAX_LIMIT es el techo aceptado aunque lo pidan más
+// grande, para no dejar que un `limit` gigante tire abajo el Event Loop
+// ni la memoria del proceso con una sola query.
+const PAGINATION = Object.freeze({
+  DEFAULT_PAGE: 1,
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+});
+
 module.exports = {
   PRODUCT_STATUS,
   USER_ROLES,
@@ -63,4 +75,5 @@ module.exports = {
   USER_DOCUMENT_TYPES,
   DELIVERY_DOCUMENT_TYPE,
   FILE_UPLOAD,
+  PAGINATION,
 };

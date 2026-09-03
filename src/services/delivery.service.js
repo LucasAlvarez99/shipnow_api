@@ -3,11 +3,15 @@ const { DELIVERY_STATUS, DELIVERY_DOCUMENT_TYPE } = require('../constants');
 const { toRelativePath } = require('../config/multer.config');
 const { DeliveryNotFoundError, InvalidStatusError, ValidationError, FileRequiredError } = require('../errors');
 const logger = require('../config/logger.config');
+const { buildPaginationMeta } = require('../utils/pagination');
 
 class DeliveryService {
-  async getAll({ status } = {}) {
+  // `page`/`limit` ya vienen validados por el Controller (Módulo 8).
+  async getAll({ status, page, limit } = {}) {
     const filter = status ? { status } : {};
-    return deliveryRepository.getAll(filter);
+    const skip = (page - 1) * limit;
+    const { items, total } = await deliveryRepository.getAll(filter, { skip, limit });
+    return { data: items, pagination: buildPaginationMeta({ page, limit, total }) };
   }
 
   async getById(id) {

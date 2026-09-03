@@ -30,12 +30,12 @@ const LOG_COLORS = {
 
 winston.addColors(LOG_COLORS);
 
-const isProduction = env.NODE_ENV === 'production';
-
-// En desarrollo se ve todo (incluye debug). En producción solo lo
-// relevante: info, warning, error y fatal. Se apoya en NODE_ENV
-// (única fuente de verdad de entorno, definida en config/env.config.js).
-const consoleLevel = isProduction ? 'info' : 'debug';
+// Nivel de consola/techo general del logger (Módulo 8): viene de
+// LOG_LEVEL, una variable de entorno obligatoria y validada en
+// config/env.config.js (nunca hardcodeada acá). Recomendado: 'debug' en
+// desarrollo, 'info' en producción — pero es una decisión de config del
+// deploy, no algo fijo en el código.
+const consoleLevel = env.LOG_LEVEL;
 
 const LOGS_DIR = path.join(__dirname, '..', '..', 'logs');
 
@@ -85,7 +85,7 @@ const errorFileTransport = new winston.transports.DailyRotateFile({
 
 const logger = winston.createLogger({
   levels: LOG_LEVELS,
-  level: isProduction ? 'info' : 'debug', // techo general del logger
+  level: env.LOG_LEVEL, // techo general del logger
   format: baseFormat,
   transports: [
     new winston.transports.Console({ level: consoleLevel, format: consoleFormat }),

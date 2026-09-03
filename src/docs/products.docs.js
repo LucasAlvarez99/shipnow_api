@@ -9,22 +9,34 @@
  *   get:
  *     tags: [Products]
  *     summary: Listar productos
- *     description: Devuelve todos los productos no eliminados. Se puede filtrar solo los disponibles.
+ *     description: >
+ *       Devuelve los productos no eliminados, paginados (Módulo 8: nunca
+ *       se devuelve la colección completa sin límite). Se puede filtrar
+ *       solo los disponibles.
  *     parameters:
  *       - in: query
  *         name: onlyAvailable
  *         schema:
  *           type: boolean
  *         description: Si es `true`, devuelve solo productos con status AVAILABLE.
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
  *     responses:
  *       200:
- *         description: Lista de productos.
+ *         description: Página de productos.
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Product'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationMeta'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *   post:

@@ -1,4 +1,5 @@
 const productService = require('../services/product.service');
+const { parsePagination } = require('../utils/pagination');
 
 // El Controller SOLO conoce req/res. Nunca importa Mongoose ni el Repository.
 
@@ -6,8 +7,9 @@ class ProductController {
   async getAll(req, res, next) {
     try {
       const onlyAvailable = req.query.onlyAvailable === 'true';
-      const products = await productService.getAll({ onlyAvailable });
-      res.status(200).json(products);
+      const { page, limit } = parsePagination(req.query);
+      const result = await productService.getAll({ onlyAvailable, page, limit });
+      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

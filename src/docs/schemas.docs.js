@@ -278,6 +278,27 @@
  *           type: string
  *           example: Operación realizada correctamente
  *
+ *     PaginationMeta:
+ *       type: object
+ *       description: >
+ *         Metadatos de paginación (Módulo 8), presentes en toda respuesta
+ *         de un endpoint de listado. Ningún endpoint de lista devuelve la
+ *         colección completa sin límite.
+ *       properties:
+ *         page:
+ *           type: integer
+ *           example: 1
+ *         limit:
+ *           type: integer
+ *           example: 20
+ *         total:
+ *           type: integer
+ *           description: Cantidad total de documentos que matchean el filtro (sin paginar).
+ *           example: 57
+ *         totalPages:
+ *           type: integer
+ *           example: 3
+ *
  *     ErrorResponse:
  *       type: object
  *       description: >
@@ -297,6 +318,25 @@
  *               type: object
  *               nullable: true
  *               description: Información adicional según el tipo de error (opcional).
+ *
+ *   parameters:
+ *     PageParam:
+ *       in: query
+ *       name: page
+ *       schema:
+ *         type: integer
+ *         minimum: 1
+ *         default: 1
+ *       description: Número de página (base 1).
+ *     LimitParam:
+ *       in: query
+ *       name: limit
+ *       schema:
+ *         type: integer
+ *         minimum: 1
+ *         maximum: 100
+ *         default: 20
+ *       description: Cantidad de resultados por página (máximo 100).
  *
  *   responses:
  *     NotFound:

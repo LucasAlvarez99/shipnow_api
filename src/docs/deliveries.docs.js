@@ -9,7 +9,10 @@
  *   get:
  *     tags: [Deliveries]
  *     summary: Listar entregas
- *     description: Devuelve todas las entregas no eliminadas, con el pedido y el repartidor populados.
+ *     description: >
+ *       Devuelve las entregas no eliminadas, con el pedido y el repartidor
+ *       populados, paginadas (Módulo 8: nunca se devuelve la colección
+ *       completa sin límite).
  *     parameters:
  *       - in: query
  *         name: status
@@ -17,15 +20,24 @@
  *           type: string
  *           enum: [ASSIGNED, IN_PROGRESS, COMPLETED, FAILED]
  *         description: Filtra las entregas por estado exacto.
+ *       - $ref: '#/components/parameters/PageParam'
+ *       - $ref: '#/components/parameters/LimitParam'
  *     responses:
  *       200:
- *         description: Lista de entregas.
+ *         description: Página de entregas.
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Delivery'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Delivery'
+ *                 pagination:
+ *                   $ref: '#/components/schemas/PaginationMeta'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
  *       500:
  *         $ref: '#/components/responses/InternalError'
  *   post:

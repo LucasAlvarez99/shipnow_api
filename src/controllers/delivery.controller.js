@@ -1,12 +1,14 @@
 const deliveryService = require('../services/delivery.service');
 const { deleteUploadedFile } = require('../config/multer.config');
+const { parsePagination } = require('../utils/pagination');
 
 class DeliveryController {
   async getAll(req, res, next) {
     try {
       const { status } = req.query;
-      const deliveries = await deliveryService.getAll({ status });
-      res.status(200).json(deliveries);
+      const { page, limit } = parsePagination(req.query);
+      const result = await deliveryService.getAll({ status, page, limit });
+      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

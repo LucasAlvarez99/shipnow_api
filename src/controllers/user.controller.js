@@ -1,11 +1,13 @@
 const userService = require('../services/user.service');
 const { deleteUploadedFile } = require('../config/multer.config');
+const { parsePagination } = require('../utils/pagination');
 
 class UserController {
   async getAll(req, res, next) {
     try {
-      const users = await userService.getAll();
-      res.status(200).json(users);
+      const { page, limit } = parsePagination(req.query);
+      const result = await userService.getAll({ page, limit });
+      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

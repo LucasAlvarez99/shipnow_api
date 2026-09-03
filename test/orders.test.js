@@ -6,16 +6,37 @@ const { ORDER_STATUS } = require('../src/constants');
 
 describe('Pedidos', () => {
   describe('GET /api/orders', () => {
-    it('lista los pedidos existentes con el usuario populado', async () => {
+    it('lista los pedidos existentes con el usuario populado, paginados', async () => {
       await createOrder();
 
       const res = await request(app).get('/api/orders');
 
       expect(res.status).to.equal(200);
-      expect(res.body).to.be.an('array').that.has.lengthOf(1);
-      expect(res.body[0]).to.have.property('totalAmount');
-      expect(res.body[0]).to.have.property('user');
-      expect(res.body[0].user).to.have.property('email');
+      expect(res.body.data).to.be.an('array').that.has.lengthOf(1);
+      expect(res.body.data[0]).to.have.property('totalAmount');
+      expect(res.body.data[0]).to.have.property('user');
+      expect(res.body.data[0].user).to.have.property('email');
+      expect(res.body.pagination).to.deep.equal({ page: 1, limit: 20, total: 1, totalPages: 1 });
+    });
+
+    it('respeta `page` y `limit`, devolviendo solo la porción pedida', async () => {
+      await createOrder();
+      await createOrder();
+      await createOrder();
+
+      const res = await request(app).get('/api/orders?page=2&limit=2');
+
+      expect(res.status).to.equal(200);
+      expect(res.body.data).to.have.lengthOf(1);
+      expect(res.body.pagination).to.deep.equal({ page: 2, limit: 2, total: 3, totalPages: 2 });
+    });
+
+    it('devuelve 400 VALIDATION_ERROR cuando `page` no es un entero válido', async () => {
+      const res = await request(app).get('/api/orders?page=abc');
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error).to.include({ code: 'VALIDATION_ERROR' });
+      expect(res.body.error.details).to.include({ field: 'page' });
     });
   });
 
