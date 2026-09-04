@@ -27,7 +27,11 @@ router.use('/health', healthRoutes);
 // request a /api/mocks o /api/logger/test en prod cae en el 404
 // genérico de ruta no encontrada (app.js), sin revelar que alguna vez
 // existieron. Fuera de producción (development/test) siguen disponibles
-// sin restricciones. Mismo criterio aplicado a Swagger UI, ver app.js.
+// sin restricciones.
+//
+// Swagger UI NO sigue este mismo criterio (queda disponible en todo
+// entorno): es de solo lectura, no escribe nada, y la consigna pide
+// poder probarlo dentro del contenedor Docker. Ver el porqué en app.js.
 if (!env.IS_PRODUCTION) {
   router.use('/mocks', mockRoutes);
   router.use('/logger', loggerRoutes);

@@ -52,7 +52,7 @@ src/
   controllers/    -> gestiona req/res, llama al service y delega errores con next(err)
     health.controller.js -> health check de la API (Módulo 8)
   routes/         -> conecta cada path con su método del controller (SIN nada de Swagger acá)
-  app.js          -> configuración de Express + middlewares globales + monta Swagger UI (solo fuera de producción)
+  app.js          -> configuración de Express + middlewares globales + monta Swagger UI (todos los entornos)
   server.js       -> punto de entrada, conecta a Mongo y levanta el server
 logs/             -> archivos de logs generados por Winston (no se versionan, ver .gitignore)
 uploads/          -> archivos subidos por Multer (Módulo 7); estructura versionada
@@ -541,29 +541,36 @@ no arrancó" de "arrancó pero no puede hablar con la base".
 
 **Criterio sobre endpoints internos en producción** (`GET /api/mocks`,
 `POST /api/mocks/seed`, `GET /api/logger/test`, y Swagger UI en
-`/api/docs`): se **desmontan por completo** cuando `NODE_ENV=production`
-(`routes/index.js` y `app.js` los excluyen condicionalmente antes de
-montar las rutas). Una request a cualquiera de esos paths en producción
-cae en el 404 genérico `ROUTE_NOT_FOUND`, sin revelar que alguna vez
-existieron. Fuera de producción (`development`/`test`) siguen
-disponibles sin restricciones — de hecho los tests de `mocks.test.js`,
+`/api/docs`), aplicado de forma distinta a cada uno:
+
+- **`/mocks` y `/logger/test` se desmontan por completo** cuando
+  `NODE_ENV=production` (`routes/index.js` los excluye condicionalmente
+  antes de montar las rutas). Una request a cualquiera de esos paths en
+  producción cae en el 404 genérico `ROUTE_NOT_FOUND`, sin revelar que
+  alguna vez existieron. Motivo: `POST /api/mocks/seed` **escribe**
+  datos falsos en la base (peligroso en producción), y `GET
+  /api/logger/test` es puro ruido de diagnóstico. `GET /api/mocks` (el
+  preview en memoria, que no escribe nada) se desmontó junto con `seed`
+  por simplicidad: viven bajo el mismo Router y la misma razón de ser
+  ("herramienta de day-to-day dev", no funcionalidad de negocio).
+- **Swagger UI (`/api/docs`) se mantiene disponible en todos los
+  entornos, incluida producción** (`app.js` la monta sin condición). Es
+  de solo lectura (no escribe nada ni ejecuta acciones), y la propia
+  consigna de este módulo pide poder probarla dentro del contenedor
+  Docker junto al health check — restringirla en producción hubiera
+  hecho fallar esa verificación, ya que el `Dockerfile` fija
+  `NODE_ENV=production` por defecto.
+
+Fuera de producción (`development`/`test`) los tres siguen disponibles
+sin restricciones — de hecho los tests de `mocks.test.js`,
 `logger.test.js` y `docs.test.js` corren con `NODE_ENV=test` y siguen
 pasando igual que antes.
-
-Motivo de la decisión: `POST /api/mocks/seed` **escribe** datos falsos
-en la base (peligroso en producción), `GET /api/logger/test` es puro
-ruido de diagnóstico, y Swagger UI expone la forma completa de la API
-(paths, schemas, ejemplos) sin aportarle nada a un cliente real en
-producción. `GET /api/mocks` (el preview en memoria, que no escribe
-nada) se desmontó junto con `seed` por simplicidad: viven bajo el mismo
-Router y la misma razón de ser ("herramienta de day-to-day dev", no
-funcionalidad de negocio).
 
 **Cómo verificarlo:** con `NODE_ENV=production` en el `.env` (y
 `MONGODB_URI`/`LOG_LEVEL` válidos), levantar el server y confirmar:
 ```
 curl.exe http://localhost:3000/api/health          # 200, status "ok"
-curl.exe http://localhost:3000/api/docs             # 404 ROUTE_NOT_FOUND
+curl.exe http://localhost:3000/api/docs             # 200, Swagger UI
 curl.exe http://localhost:3000/api/mocks            # 404 ROUTE_NOT_FOUND
 curl.exe http://localhost:3000/api/logger/test      # 404 ROUTE_NOT_FOUND
 ```
@@ -610,14 +617,13 @@ docker run \
   -p 3000:3000 \
   shipnow-api
 ```
-Con el contenedor corriendo, se puede probar como mínimo:
+Con el contenedor corriendo (incluso con `NODE_ENV=production`, el
+default del Dockerfile), se puede probar como mínimo:
 ```
 curl.exe http://localhost:3000/api/health   # health check
+curl.exe http://localhost:3000/api/docs     # Swagger UI (200, disponible en todo entorno)
 curl.exe http://localhost:3000/api/products # endpoint principal (paginado)
 ```
-(Swagger no responde acá porque `NODE_ENV=production` lo desmonta, ver
-arriba — para probarlo dentro del contenedor hay que correrlo con
-`NODE_ENV=development` en su lugar.)
 
 **`docker-compose.yml`** (extra, no pedido explícitamente pero incluido
 para poder levantar todo el stack —API + MongoDB— con un solo comando,
@@ -652,7 +658,7 @@ todavía está inicializando.
 - (mismos endpoints en `/api/deliveries`, también paginado en su `GET` de listado)
 
 Ver el detalle completo (parámetros, bodies, respuestas y errores) en `/api/docs`
-(no disponible en producción, ver Módulo 8 más abajo).
+(disponible en todos los entornos, incluida producción — ver Módulo 8 más abajo).
 
 ### Health check (Módulo 8)
 

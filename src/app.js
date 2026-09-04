@@ -4,7 +4,6 @@ const errorMiddleware = require('./middlewares/error.middleware');
 const httpLoggerMiddleware = require('./middlewares/httpLogger.middleware');
 const { setupSwagger } = require('./config/swagger.config');
 const logger = require('./config/logger.config');
-const env = require('./config/env.config');
 
 const app = express();
 
@@ -17,14 +16,18 @@ app.use(httpLoggerMiddleware);
 app.use('/api', routes);
 
 // Documentación interactiva (Swagger UI). Toda la configuración vive en
-// config/swagger.config.js; acá solo se "engancha" a la app. Criterio de
-// endpoints internos en producción (Módulo 8, ver también routes/index.js):
-// Swagger expone la forma completa de la API (paths, schemas, ejemplos) y
-// no aporta nada a un cliente real en producción, así que se desmonta por
-// completo cuando NODE_ENV=production — /api/docs cae en el 404 genérico.
-if (!env.IS_PRODUCTION) {
-  setupSwagger(app);
-}
+// config/swagger.config.js; acá solo se "engancha" a la app.
+//
+// A diferencia de /mocks y /logger/test (ver routes/index.js), Swagger
+// se mantiene disponible en TODOS los entornos, incluida producción: la
+// consigna del Módulo 8 pide explícitamente poder probar Swagger dentro
+// del contenedor Docker, y el Dockerfile fija NODE_ENV=production por
+// defecto — restringirlo ahí habría hecho que la verificación pedida
+// (health check + Swagger + un endpoint principal, todo funcionando en
+// el mismo `docker run`) fallara. Es documentación de solo lectura (no
+// escribe nada ni ejecuta acciones), así que el riesgo de dejarla
+// expuesta es bajo comparado con /mocks/seed (que sí escribe en la base).
+setupSwagger(app);
 
 // Ruta no encontrada (ningún router la manejó).
 app.use((req, res, next) => {
