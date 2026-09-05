@@ -20,7 +20,10 @@ npm-debug.log*
 
 # Logs generados por Winston (error.log, combined.log): se generan
 # DENTRO del contenedor en runtime, no hay que copiar los del host.
-logs/*.log
+# Logs generados por Winston (error.log, combined.log, y cualquier
+# archivo viejo de una config anterior): se generan DENTRO del
+# contenedor en runtime, no hay que copiar los del host.
+logs/*
 
 # Archivos subidos por Multer: igual que los logs, se generan en
 # runtime dentro del contenedor. Solo se ignora el CONTENIDO (igual
