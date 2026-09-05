@@ -17,8 +17,10 @@ class LoggerController {
     res.status(200).json({
       message: 'Se generaron logs de prueba en los 6 niveles: debug, http, info, warning, error, fatal',
       revisar: {
-        consola: 'Todos los niveles en desarrollo; solo info/warning/error/fatal en producción',
-        archivo: 'logs/error-YYYY-MM-DD.log debería tener SOLO las líneas de error y fatal de esta prueba',
+        consola: 'Solo en NODE_ENV=development se ven acá los 6 niveles (hasta LOG_LEVEL); en test/producción la consola queda silenciosa.',
+        archivo:
+          'logs/error.log debería tener SOLO las líneas de fatal/error de esta prueba; ' +
+          'logs/combined.log debería tener TODAS (hasta el nivel definido en LOG_LEVEL).',
       },
     });
   }

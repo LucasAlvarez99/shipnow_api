@@ -13,10 +13,11 @@
  *       **Herramienta interna de diagnóstico, NO una funcionalidad de
  *       negocio.** Dispara un log de cada nivel definido
  *       (debug, http, info, warning, error, fatal) para poder verificar
- *       rápidamente que Winston está bien configurado: en desarrollo
- *       deberían verse los 6 en consola; en producción solo
- *       info/warning/error/fatal. Solo error y fatal quedan persistidos
- *       en `logs/error-YYYY-MM-DD.log`.
+ *       rápidamente que Winston está bien configurado: la consola solo
+ *       muestra algo cuando `NODE_ENV=development` (hasta `LOG_LEVEL`);
+ *       en test/producción queda silenciosa. `logs/error.log` guarda
+ *       solo fatal/error; `logs/combined.log` guarda toda la actividad
+ *       hasta el nivel definido en `LOG_LEVEL`.
  *     responses:
  *       200:
  *         description: Se generaron los logs de prueba correctamente.

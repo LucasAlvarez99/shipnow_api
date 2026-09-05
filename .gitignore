@@ -6,10 +6,9 @@ node_modules/
 # Cobertura de tests, si se llega a generar
 coverage/
 
-# Logs generados por Winston (la carpeta se documenta, los archivos no se versionan)
+# Logs generados por Winston (la carpeta se documenta, los archivos no se
+# versionan): error.log y combined.log.
 logs/*.log
-logs/*.log.gz
-logs/.*-audit.json
 
 # Archivos subidos por los usuarios (Módulo 7): la estructura de carpetas
 # se versiona (vía .gitkeep) para que quede documentada, pero el contenido

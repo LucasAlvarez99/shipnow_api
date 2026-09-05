@@ -1,6 +1,5 @@
 const path = require('path');
 const winston = require('winston');
-require('winston-daily-rotate-file');
 const env = require('./env.config');
 
 /**
@@ -30,11 +29,11 @@ const LOG_COLORS = {
 
 winston.addColors(LOG_COLORS);
 
-// Nivel de consola/techo general del logger (Módulo 8): viene de
-// LOG_LEVEL, una variable de entorno obligatoria y validada en
-// config/env.config.js (nunca hardcodeada acá). Recomendado: 'debug' en
-// desarrollo, 'info' en producción — pero es una decisión de config del
-// deploy, no algo fijo en el código.
+// Nivel de consola/techo general del logger. Viene de LOG_LEVEL, una
+// variable de entorno obligatoria y validada en config/env.config.js
+// (nunca hardcodeada acá). Recomendado: 'debug' en desarrollo, 'info'
+// en producción — pero es una decisión de config del deploy, no algo
+// fijo en el código.
 const consoleLevel = env.LOG_LEVEL;
 
 const LOGS_DIR = path.join(__dirname, '..', '..', 'logs');
@@ -69,28 +68,43 @@ const consoleFormat = winston.format.combine(baseFormat, winston.format.colorize
 // Archivo: sin colores (los códigos ANSI no tienen sentido en un .log).
 const fileFormat = winston.format.combine(baseFormat, buildPrintf());
 
-// Persistencia de errores con rotación diaria. Como el nivel del
-// transport es 'error' (prioridad 1) y nuestros niveles son
-// fatal=0, error=1, warning=2..., acá SOLO caen 'fatal' y 'error'
-// (ni 'warning', ni 'info', ni 'debug').
-const errorFileTransport = new winston.transports.DailyRotateFile({
+// error.log: SOLO fatal y error (nivel del transport = 'error', prioridad
+// 1; con nuestros niveles fatal=0/error=1/warning=2..., eso deja afuera
+// warning/info/http/debug). Pensado para poder mirar rápido "qué se
+// rompió", sin ruido de actividad normal mezclado.
+const errorFileTransport = new winston.transports.File({
   dirname: LOGS_DIR,
-  filename: 'error-%DATE%.log',
-  datePattern: 'YYYY-MM-DD',
+  filename: 'error.log',
   level: 'error',
   format: fileFormat,
-  maxFiles: '14d', // conserva 14 días de historial; los más viejos se eliminan solos
-  zippedArchive: true, // los rotados anteriores se comprimen para no ocupar tanto espacio
 });
+
+// combined.log: actividad general de la app, hasta el techo definido
+// por LOG_LEVEL (en producción, típicamente hasta 'info'; en desarrollo,
+// hasta 'debug'). Incluye TODO lo que también cae en error.log (fatal y
+// error también se escriben acá), más el resto de los niveles.
+const combinedFileTransport = new winston.transports.File({
+  dirname: LOGS_DIR,
+  filename: 'combined.log',
+  level: env.LOG_LEVEL,
+  format: fileFormat,
+});
+
+// Consola: SOLO en desarrollo. En test queda silenciosa (no ensucia la
+// salida de `npm test`, que ya reporta sus propios resultados) y en
+// producción tampoco escribe a stdout — la actividad real vive en
+// combined.log/error.log, que es lo que un orquestador/monitoreo va a
+// leer o recolectar, no la consola de un proceso en background.
+const transports = [errorFileTransport, combinedFileTransport];
+if (env.NODE_ENV === 'development') {
+  transports.push(new winston.transports.Console({ level: consoleLevel, format: consoleFormat }));
+}
 
 const logger = winston.createLogger({
   levels: LOG_LEVELS,
   level: env.LOG_LEVEL, // techo general del logger
   format: baseFormat,
-  transports: [
-    new winston.transports.Console({ level: consoleLevel, format: consoleFormat }),
-    errorFileTransport,
-  ],
+  transports,
   exitOnError: false,
 });
 

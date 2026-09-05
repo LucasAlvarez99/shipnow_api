@@ -1,19 +1,63 @@
-# ShipNow API — Estructura profesional (M1) + Mocking (M2) + Errores (M3) + Logging (M4) + Swagger (M5) + Testing (M6) + Carga de archivos (M7) + Performance, producción y Docker (M8)
+# ShipNow API
 
-Refactorización de la API base de ShipNow a arquitectura por capas
-(Controller → Service → Repository) más una capa de configuración
-de entorno validada, un módulo de mocking para generar datos de
-prueba (usuarios, repartidores, pedidos y entregas), una capa
-centralizada de manejo de errores, un sistema de logging
-profesional con Winston conectado a esa capa de errores,
-documentación interactiva de la API con Swagger/OpenAPI, una
-suite de tests funcionales automatizados con Mocha, Chai y
-Supertest, carga de archivos con Multer (documentos de usuario
-y comprobantes de entrega) integrada a todas las capas anteriores,
-y un último módulo que prepara todo esto para un entorno más
-cercano a producción: paginación en los listados, configuración
-por entorno reforzada, un health check, y la API contenerizada
-con Docker.
+API backend de ShipNow: gestión de productos, usuarios, pedidos y
+entregas, con arquitectura por capas, manejo centralizado de errores,
+logging, documentación interactiva, testing funcional automatizado,
+carga de archivos y una configuración lista para correr en Docker.
+
+## Descripción del proyecto
+
+ShipNow es una API REST para una operación de logística/delivery:
+expone el catálogo de **productos**, administra **usuarios** (clientes
+y repartidores), permite crear y seguir **pedidos**, y asignar y
+actualizar el estado de sus **entregas** correspondientes (equivalente
+al "envío"/tracking de un pedido). Incluye además un módulo de
+**mocks** para generar datos de prueba consistentes con los modelos
+reales, y soporta la carga de **archivos** (documentos de usuario y
+comprobantes de entrega) con sus metadatos guardados en Mongo.
+
+El proyecto se construyó de forma incremental a lo largo del curso
+(cada módulo consolidado sobre el anterior) y esta es la consolidación
+final: una API funcional, documentada, testeada y lista para
+ejecutarse en un entorno controlado (local o contenerizada con Docker).
+
+## Tecnologías
+
+- **Node.js** + **Express** — framework HTTP.
+- **MongoDB** + **Mongoose** — persistencia y modelado de datos.
+- **Multer** — carga de archivos (`multipart/form-data`).
+- **Winston** — logging centralizado por niveles, a archivo y consola.
+- **Swagger** (`swagger-jsdoc` + `swagger-ui-express`) — documentación
+  interactiva de la API en `/api/docs`.
+- **Mocha** + **Chai** + **Supertest** — testing funcional automatizado.
+- **dotenv** + **cross-env** — configuración por entorno.
+- **Docker** + **docker-compose** — contenerización y orquestación local (API + MongoDB).
+
+## Arquitectura
+
+Arquitectura por capas, **Controller → Service → Repository**, la misma
+para las cuatro entidades principales (Products, Users, Orders,
+Deliveries):
+
+- **Controller** (`src/controllers/`): solo conoce `req`/`res`. Llama al
+  Service correspondiente y delega cualquier error con `next(err)`.
+  Nunca importa Mongoose ni un Repository.
+- **Service** (`src/services/`): toda la lógica de negocio y las
+  validaciones de dominio viven acá (qué es un estado válido, cuándo un
+  producto pasa a `OUT_OF_STOCK`, etc.). Nunca habla con Mongoose
+  directamente, siempre pasa por el Repository correspondiente.
+- **Repository** (`src/repositories/`): único lugar del proyecto que
+  importa los `models/` de Mongoose y arma queries. Sin lógica de
+  negocio.
+- **Routes** (`src/routes/`): solo conectan un path + verbo HTTP con un
+  método del Controller. Nunca acceden a la base ni a un Service.
+
+A esto se suman capas transversales: `config/` (entorno, logger,
+Swagger, Multer — todas validadas o centralizadas en un único lugar),
+`errors/` (errores de dominio tipados, ver Módulo 3 más abajo),
+`middlewares/` (manejo global de errores y logging de requests), y
+`utils/` (paginación). El detalle archivo por archivo está en
+"Estructura" más abajo.
 
 > **Nota sobre este módulo:** la consigna del Módulo 5 pide documentar
 > los tags Users, Orders, Deliveries, Mocks y Logger. Hasta el Módulo 4
@@ -180,9 +224,13 @@ logger.info('Algo pasó');
 
 **Comportamiento según el entorno** (usa la misma variable `NODE_ENV`
 del Módulo 1, validada en `env.config.js`):
-- **`development`**: la consola muestra **todos** los niveles, incluido `debug`.
-- **`production`**: la consola solo muestra `info`, `warning`, `error` y `fatal`
-  (se omiten `debug` y `http` para no saturar los logs).
+- **`development`**: la consola muestra logs, hasta el nivel definido
+  en `LOG_LEVEL` (típicamente `debug`, o sea, todos).
+- **`test`/`production`**: la consola queda **silenciosa** (Entrega
+  Final: se decidió así para no ensuciar la salida de `npm test` ni la
+  de un proceso corriendo en background/orquestado — la actividad real
+  se persiste en los archivos de `logs/`, que es lo que un
+  orquestador/monitoreo va a leer o recolectar).
 
 **Dónde se usa el logger:**
 - `server.js` — arranque del servidor (`info`), conexión a MongoDB (`info`
@@ -202,20 +250,20 @@ del Módulo 1, validada en `env.config.js`):
   seed exitoso en MongoDB (`info`); si falla la inserción, se loguea
   como `error` antes de traducirse a un `DatabaseError`.
 
-**Persistencia en archivos y rotación:**
+**Persistencia en archivos** (Entrega Final):
 
-Los niveles `error` y `fatal` se guardan además en archivos dentro de
-`logs/`, con rotación diaria (`winston-daily-rotate-file`):
-- Un archivo nuevo por día: `logs/error-YYYY-MM-DD.log`.
-- Se conservan 14 días de historial (`maxFiles: '14d'`); los archivos
-  más viejos se eliminan automáticamente.
-- Los archivos rotados se comprimen (`zippedArchive: true`).
-- **Solo** quedan ahí los niveles `error` y `fatal` — ni `warning`, ni
-  `info`, ni `debug` (esos solo van a consola).
+Dos archivos fijos dentro de `logs/`:
+- **`logs/error.log`** — SOLO `fatal` y `error` (el nivel del transport
+  es `'error'`; con nuestros niveles `fatal=0/error=1/warning=2...`, deja
+  afuera `warning`/`info`/`http`/`debug`). Pensado para poder mirar
+  rápido "qué se rompió", sin ruido de actividad normal mezclado.
+- **`logs/combined.log`** — actividad general de la app, hasta el techo
+  definido por `LOG_LEVEL` (incluye también `fatal`/`error`, más el
+  resto de los niveles habilitados).
 
 La carpeta `logs/` está versionada (con un `.gitkeep`) para que quede
-documentada, pero los archivos `.log` y `.log.gz` que genera la app
-**no** se suben al repo (ver `.gitignore`).
+documentada, pero los archivos `.log` que genera la app **no** se suben
+al repo (ver `.gitignore`).
 
 **Endpoint de prueba del logger:**
 
@@ -230,10 +278,10 @@ rápidamente que la configuración funciona:
 curl.exe http://localhost:3000/api/logger/test
 ```
 
-Después de llamarlo, revisá:
-- La consola (todos los niveles en desarrollo).
-- `logs/error-YYYY-MM-DD.log` (debería tener solo las líneas de
-  `error` y `fatal` de esa prueba).
+Después de llamarlo (con `NODE_ENV=development`), revisá:
+- La consola (se ven los niveles hasta `LOG_LEVEL`).
+- `logs/error.log` (debería tener solo las líneas de `error`/`fatal` de esa prueba).
+- `logs/combined.log` (debería tener todas las líneas, hasta `LOG_LEVEL`).
 
 ## Documentación de la API con Swagger (Módulo 5)
 
@@ -259,22 +307,30 @@ http://localhost:3000/api/docs
 
 **Módulos documentados (tags):**
 
+> **Nota de terminología:** la consigna de la Entrega Final habla de
+> "envíos"/tracking; en el dominio real de ShipNow eso se modela con
+> **`Orders`** (el pedido) + **`Deliveries`** (su entrega asociada,
+> con estado propio: `ASSIGNED` → `IN_PROGRESS` → `COMPLETED`/`FAILED`),
+> no como una entidad separada llamada "Envío".
+
 | Tag | Archivo de docs | Endpoints |
 |---|---|---|
 | `Products` | `products.docs.js` | CRUD completo de productos |
-| `Users` | `users.docs.js` | CRUD completo de usuarios |
+| `Users` | `users.docs.js` | CRUD completo de usuarios + carga de documentos |
 | `Orders` | `orders.docs.js` | Listar, ver, crear, cambiar estado y eliminar pedidos |
-| `Deliveries` | `deliveries.docs.js` | Listar, ver, crear, cambiar estado y eliminar entregas |
+| `Deliveries` | `deliveries.docs.js` | Listar, ver, crear, cambiar estado, eliminar y subir comprobante de entregas (tracking del pedido) |
 | `Mocks` | `mocks.docs.js` | Previsualizar (`GET /mocks`) e insertar (`POST /mocks/seed`) datos de prueba |
 | `Logger` | `logger.docs.js` | `GET /logger/test`, marcado explícitamente como herramienta interna, no funcionalidad de negocio |
+| `Health` | `health.docs.js` | `GET /health`, estado de la API (Módulo 8) |
 
 **Schemas reutilizables** (`src/docs/schemas.docs.js`, referenciados
 con `$ref` desde todos los demás): `User`, `UserInput`, `Product`,
 `Order`, `OrderInput`, `OrderItem`, `OrderStatusInput`, `Delivery`,
-`DeliveryInput`, `DeliveryStatusInput`, `ErrorResponse` y
-`SuccessResponse`. También hay `responses` reutilizables
-(`NotFound`, `ValidationError`, `InvalidStatus`, `InternalError`) para
-no repetir la misma forma de error una y otra vez.
+`DeliveryInput`, `DeliveryStatusInput`, `FileMetadata`,
+`PaginationMeta`, `HealthStatus`, `ErrorResponse` y `SuccessResponse`.
+También hay `responses` reutilizables (`NotFound`, `ValidationError`,
+`InvalidStatus`, `InternalError`) y `parameters` reutilizables
+(`PageParam`, `LimitParam`) para no repetir la misma forma una y otra vez.
 
 **Errores documentados** (coinciden con lo que la API devuelve
 realmente, ver `errors/error.dictionary.js`):
@@ -348,21 +404,16 @@ nunca se asume que ya existen cargados a mano.
 
 | Archivo | Endpoints | Casos exitosos | Casos de error |
 |---|---|---|---|
+| `test/products.test.js` | `GET /api/products`, `GET /api/products/:id`, `POST /api/products`, `PUT /api/products/:id`, `DELETE /api/products/:id` | Listar (paginado, con `?onlyAvailable=`), ver por ID, crear (con y sin stock inicial), actualizar stock/status, soft delete | `VALIDATION_ERROR` (400, datos incompletos o `limit` fuera de rango), `PRODUCT_NOT_FOUND` (404) |
 | `test/users.test.js` | `GET /api/users`, `GET /api/users/:id` | Listado paginado (vacío y con usuarios, sin exponer `password`), `?page=`/`?limit=` | `USER_NOT_FOUND` (404), `VALIDATION_ERROR` (400, `limit` fuera de rango) |
 | `test/orders.test.js` | `GET /api/orders`, `GET /api/orders/:id`, `POST /api/orders`, `PATCH /api/orders/:id/status` | Listar (paginado), ver por ID, crear con datos válidos, actualizar a un estado válido | `VALIDATION_ERROR` (400, datos incompletos o `page` inválido), `ORDER_NOT_FOUND` (404), `INVALID_STATUS` (400) |
+| `test/deliveries.test.js` | `GET /api/deliveries`, `GET /api/deliveries/:id`, `POST /api/deliveries`, `PATCH /api/deliveries/:id/status`, `DELETE /api/deliveries/:id` | Listar (paginado, con `?status=`, pedido/repartidor populados), ver por ID, crear, actualizar estado, soft delete | `VALIDATION_ERROR` (400, datos incompletos), `DELIVERY_NOT_FOUND` (404), `INVALID_STATUS` (400) |
 | `test/mocks.test.js` | `GET /api/mocks`, `POST /api/mocks/seed` | Preview en memoria (no persiste nada) y seed real en Mongo | `INVALID_MOCK_QUANTITY` (400, cantidad negativa o no numérica) |
 | `test/logger.test.js` | `GET /api/logger/test` | Dispara los 6 niveles de log y devuelve el resumen esperado | — |
 | `test/docs.test.js` | `GET /api/docs` | Sirve la interfaz de Swagger UI (`text/html`) | — |
 | `test/health.test.js` | `GET /api/health` | Devuelve `status`/`environment`/`uptime`/`timestamp`, sin exponer `MONGODB_URI` (Módulo 8) | — |
 | `test/notFound.test.js` | Cualquier ruta no manejada | — | `ROUTE_NOT_FOUND` (404), coherente con lo documentado en Swagger |
 | `test/uploads.test.js` | `POST /api/users/:id/documents`, `POST /api/deliveries/:id/proof` | Carga correcta de un documento de usuario y de un comprobante de entrega, con metadatos registrados | `FILE_REQUIRED`, `INVALID_FILE_TYPE`, `FILE_TOO_LARGE`, `INVALID_DOCUMENT_TYPE`, `USER_NOT_FOUND`, `DELIVERY_NOT_FOUND` |
-
-> **Nota (Módulo 8):** `products.test.js` y `deliveries.test.js` no
-> existían antes de este módulo y siguen sin un archivo dedicado; sus
-> endpoints de listado se paginaron con el mismo mecanismo y los mismos
-> criterios que `users`/`orders` (ver `utils/pagination.js`), verificado
-> manualmente. Queda como deuda técnica agregarles cobertura propia en
-> una futura entrega.
 
 Cada test valida el status HTTP **y** la estructura del body (incluyendo,
 en los errores, el `code` definido en `errors/error.dictionary.js` y,
@@ -625,19 +676,18 @@ curl.exe http://localhost:3000/api/docs     # Swagger UI (200, disponible en tod
 curl.exe http://localhost:3000/api/products # endpoint principal (paginado)
 ```
 
-**`docker-compose.yml`** (extra, no pedido explícitamente pero incluido
-para poder levantar todo el stack —API + MongoDB— con un solo comando,
-sin depender de un Mongo instalado a mano en el host):
+**`docker-compose.yml`** (API + MongoDB, ambos servicios necesarios
+para levantar el stack completo con un solo comando):
 ```
 cp .env.docker.example .env.docker
 docker compose up --build
 ```
 Levanta la API en `http://localhost:3000` y Mongo en el puerto `27017`
 del host (por si se lo quiere inspeccionar con Compass/`mongosh` desde
-afuera del contenedor). El servicio `api` espera a que el `healthcheck`
-de `mongo` esté en verde antes de arrancar (`depends_on: condition:
-service_healthy`), así nunca intenta conectar contra un Mongo que
-todavía está inicializando.
+afuera del contenedor). El servicio `api` **espera a que el
+`healthcheck` de `mongo` esté en verde antes de arrancar**
+(`depends_on: condition: service_healthy`), así nunca intenta conectar
+contra un Mongo que todavía está inicializando.
 
 ## Endpoints
 

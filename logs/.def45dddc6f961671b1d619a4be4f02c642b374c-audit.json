@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/home/claude/work/shipnow_api/logs/.def45dddc6f961671b1d619a4be4f02c642b374c-audit.json",
+    "files": [
+        {
+            "date": 1787259874624,
+            "name": "/home/claude/work/shipnow_api/logs/error-2026-08-20.log",
+            "hash": "7c6ee04d3c6864e798be9f9a2a9a39fbc506fc8344a3637dba135af48bf2f3d6"
+        }
+    ],
+    "hashType": "sha256"
+}

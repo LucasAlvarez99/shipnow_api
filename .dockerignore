@@ -18,11 +18,9 @@ npm-debug.log*
 .gitignore
 .gitattributes
 
-# Logs generados por Winston: se generan DENTRO del contenedor en
-# runtime, no hay que copiar los del host.
+# Logs generados por Winston (error.log, combined.log): se generan
+# DENTRO del contenedor en runtime, no hay que copiar los del host.
 logs/*.log
-logs/*.log.gz
-logs/.*-audit.json
 
 # Archivos subidos por Multer: igual que los logs, se generan en
 # runtime dentro del contenedor. Solo se ignora el CONTENIDO (igual

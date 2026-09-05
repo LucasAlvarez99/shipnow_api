@@ -73,8 +73,8 @@ function errorMiddleware(err, req, res, next) {
 
   // Cualquier otro error no anticipado (bug real del servidor): se
   // registra como error, con el stack completo para poder investigarlo
-  // después en /logs/error-*.log. Nunca se expone el stack ni el mensaje
-  // real al cliente.
+  // después en logs/error.log (y también en logs/combined.log). Nunca se
+  // expone el stack ni el mensaje real al cliente.
   logger.error(`Error inesperado del servidor: ${err.message}`, {
     method: req.method,
     path: req.originalUrl,

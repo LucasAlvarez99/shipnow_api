@@ -1,0 +1,30 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\Users\\Lucas\\Documents\\shipnow_api\\logs\\.f5798d907129f674c1871b34c1f5115574bb4e00-audit.json",
+    "files": [
+        {
+            "date": 1787406702855,
+            "name": "C:\\Users\\Lucas\\Documents\\shipnow_api\\logs\\error-2026-08-22.log",
+            "hash": "f21613730517700adc61c9f2701c9a833b47b99a9ccc1db0e84b2a90f7d6cab4"
+        },
+        {
+            "date": 1787791167286,
+            "name": "C:\\Users\\Lucas\\Documents\\shipnow_api\\logs\\error-2026-08-26.log",
+            "hash": "53a089a62eeaebc4483cc0056711cfbc0f939b6b96b1cfbba5c81fdf90ceddc2"
+        },
+        {
+            "date": 1788397445525,
+            "name": "C:\\Users\\Lucas\\Documents\\shipnow_api\\logs\\error-2026-09-02.log",
+            "hash": "33adc6beb8368be1b2205005311c471cbf71b06b98b9f81332c22e58ffd443be"
+        },
+        {
+            "date": 1788533614178,
+            "name": "C:\\Users\\Lucas\\Documents\\shipnow_api\\logs\\error-2026-09-04.log",
+            "hash": "e5a28f7b124a53f5844a7ed6c1ead098c4c98f098fe5629176978decc5989343"
+        }
+    ],
+    "hashType": "sha256"
+}

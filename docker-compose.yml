@@ -1,8 +1,7 @@
 # Stack completo (API + MongoDB) para levantar todo con un solo comando,
-# sin depender de un Mongo instalado a mano en el host. Es un extra sobre
-# lo pedido por la consigna (que solo pide poder correr el contenedor de
-# la API sola, recibiendo variables desde afuera): acá se muestra ese
-# mismo mecanismo (env_file) resuelto de punta a punta.
+# sin depender de un Mongo instalado a mano en el host. La API espera a
+# que el healthcheck de Mongo esté en verde antes de arrancar
+# (depends_on: condition: service_healthy, ver servicio "api" abajo).
 #
 # Uso:
 #   cp .env.docker.example .env.docker   (completar si hace falta)
